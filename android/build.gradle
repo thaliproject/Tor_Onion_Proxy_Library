@@ -1,0 +1,92 @@
+/*
+Copyright (c) Microsoft Open Technologies, Inc.
+All Rights Reserved
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
+License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+INCLUDING WITHOUT LIMITATION ANY IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+MERCHANTABLITY OR NON-INFRINGEMENT.
+
+See the Apache 2 License for the specific language governing permissions and limitations under the License.
+*/
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:0.9.+'
+    }
+}
+apply plugin: 'android-library'
+apply plugin: 'maven'
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+android {
+    compileSdkVersion 19
+    buildToolsVersion "19.0.1"
+
+    defaultConfig {
+        minSdkVersion 18
+        targetSdkVersion 19
+    }
+
+    // Needed to work around https://code.google.com/p/android/issues/detail?id=61573#c14
+    packagingOptions {
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/ASL2.0'
+        exclude 'META-INF/NOTICE.txt' //https://groups.google.com/forum/#!topic/adt-dev/bl5Rc4Szpzg
+        exclude 'META-INF/LICENSE.txt'
+    }
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: '*.jar')
+    compile 'org.slf4j:slf4j-api:1.7.7'
+
+    androidTestCompile 'org.slf4j:slf4j-android:1.7.7'
+}
+
+def mavenPath() {
+    artifactory_local == "true" ?
+            'file://' + new File(System.getProperty('user.home'), '.m2/repository').absolutePath :
+            artifactory_contextUrl + "/libs-release-local"
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            repository(url: mavenPath()) {
+                authentication(userName: "${artifactory_user}", password: "${artifactory_password}")
+            }
+
+            pom.version = "0.0.2"
+            pom.groupId = 'com.msopentech.thali'
+            pom.artifactId = 'TorOnionProxyAndroid'
+            pom.project {
+                licenses {
+                    license {
+                        name 'Apache 2.0'
+                        url 'https://thali.codeplex.com/SourceControl/latest#license.txt'
+                        distribution 'repo'
+                    }
+                }
+            }
+        }
+    }
+}
+
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from android.sourceSets.main.java.srcDirs
+}
+
+artifacts {
+    archives sourcesJar
+}
