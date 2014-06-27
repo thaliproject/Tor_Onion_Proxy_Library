@@ -38,7 +38,6 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
 import com.msopentech.thali.toronionproxy.OnionProxyManager;
-import net.freehaven.tor.control.EventHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,10 +58,9 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
     private volatile BroadcastReceiver networkStateReceiver;
     private final Context context;
 
-    public AndroidOnionProxyManager(Context context, EventHandler eventHandler) {
-        super(new AndroidOnionProxyContext(context), eventHandler);
+    public AndroidOnionProxyManager(Context context) {
+        super(new AndroidOnionProxyContext(context));
         this.context = context;
-
 
         // Register to receive network status events
         networkStateReceiver = new NetworkStateReceiver();
@@ -72,12 +70,14 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
 
     @Override
     public boolean start() throws IOException {
-        boolean superResult = super.start();
-        // Register to receive network status events
-        networkStateReceiver = new NetworkStateReceiver();
-        IntentFilter filter = new IntentFilter(CONNECTIVITY_ACTION);
-        context.registerReceiver(networkStateReceiver, filter);
-        return superResult;
+        if (super.start()) {
+            // Register to receive network status events
+            networkStateReceiver = new NetworkStateReceiver();
+            IntentFilter filter = new IntentFilter(CONNECTIVITY_ACTION);
+            context.registerReceiver(networkStateReceiver, filter);
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -160,7 +160,6 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
             return false;
         }
     }
-
 
     private class NetworkStateReceiver extends BroadcastReceiver {
 

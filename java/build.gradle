@@ -1,12 +1,117 @@
-apply plugin: 'java'
+/*
+Copyright (c) Microsoft Open Technologies, Inc.
+All Rights Reserved
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
+License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
 
-sourceCompatibility = 1.5
-version = '1.0'
+THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+INCLUDING WITHOUT LIMITATION ANY IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+MERCHANTABLITY OR NON-INFRINGEMENT.
+
+See the Apache 2 License for the specific language governing permissions and limitations under the License.
+*/
+
+apply plugin: 'java'
+apply plugin: 'maven'
+
+sourceCompatibility = 1.6
+
 
 repositories {
+    mavenLocal()
+    maven { url "http://thaliartifactory.cloudapp.net/artifactory/libs-snapshot" }
+    maven { url "http://thaliartifactory.cloudapp.net/artifactory/libs-release" }
     mavenCentral()
 }
 
 dependencies {
-    testCompile group: 'junit', name: 'junit', version: '4.11'
+    compile fileTree(dir: 'libs', include: '*.jar')
+    compile 'org.slf4j:slf4j-api:1.7.7'
+
+    testCompile 'junit:junit:4.11'
+    testCompile 'org.slf4j:slf4j-simple:1.7.7'
 }
+
+def mavenPath() {
+    artifactory_local == "true" ?
+            'file://' + new File(System.getProperty('user.home'), '.m2/repository').absolutePath :
+            artifactory_contextUrl + "/libs-release-local"
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            repository(url: mavenPath()) {
+                authentication(userName: "${artifactory_user}", password: "${artifactory_password}")
+            }
+
+            pom.version = "0.0.2"
+            pom.groupId = 'com.msopentech.thali'
+            pom.artifactId = 'ThaliOnionProxyJava'
+            pom.project {
+                licenses {
+                    license {
+                        name 'Apache 2.0'
+                        url 'https://thali.codeplex.com/SourceControl/latest#license.txt'
+                        distribution 'repo'
+                    }
+                }
+            }
+        }
+    }
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.java.srcDirs
+}
+
+task generateJavadocs(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    source = sourceSets.main.java.srcDirs
+}
+
+artifacts {
+    archives sourcesJar
+    archives generateJavadocs
+}
+
+
+// Copying content from Android over to Java
+task deleteLibs(type: Delete) {
+    delete 'libs'
+}
+
+task copyLibs(type: Copy, dependsOn: deleteLibs) {
+    from "../android/libs"
+    into 'libs'
+}
+
+task deleteTorOnionProxyTest(type: Delete, dependsOn: copyLibs) {
+    delete 'src/test/java/com/msopentech/thali/toronionproxy'
+}
+
+task copyTorOnionProxyTest(type: Copy, dependsOn: deleteTorOnionProxyTest) {
+    from "../android/src/androidTest/java/com/msopentech/thali/toronionproxy"
+    into 'src/test/java/com/msopentech/thali/toronionproxy'
+}
+
+task deleteTorOnionProxyMain(type: Delete, dependsOn: copyTorOnionProxyTest) {
+    delete 'src/main/java/com/msopentech/thali/toronionproxy'
+}
+
+task copyTorOnionProxyMain(type: Copy, dependsOn: deleteTorOnionProxyMain) {
+    from "../android/src/main/java/com/msopentech/thali/toronionproxy"
+    into 'src/main/java/com/msopentech/thali/toronionproxy'
+}
+
+task deleteTorrc(type: Delete, dependsOn: copyTorOnionProxyMain) {
+    delete 'src/main/resources/torrc'
+}
+
+task copyTorrc(type: Copy, dependsOn: deleteTorrc) {
+    from "../android/src/main/assets/torrc"
+    into 'src/main/resources'
+}
+
+build.dependsOn(copyTorrc)

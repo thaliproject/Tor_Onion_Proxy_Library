@@ -44,6 +44,11 @@ public class AndroidWriteObserver extends FileObserver implements WriteObserver 
 
     public AndroidWriteObserver(File file) {
         super(file.getAbsolutePath(), CLOSE_WRITE);
+
+        if (file.exists() == false) {
+            throw new IllegalArgumentException("FileObserver doesn't work properly on files that don't already exist.");
+        }
+
         this.startWatching();
     }
 

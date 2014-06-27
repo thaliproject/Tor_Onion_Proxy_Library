@@ -1,7 +1,7 @@
-ControlPort 59051
+ControlPort 59053
 CookieAuthentication 1
 DisableNetwork 1
 PidFile pid
 RunAsDaemon 1
 SafeSocks 1
-SocksPort 59050
+SOCKSPort 59052
