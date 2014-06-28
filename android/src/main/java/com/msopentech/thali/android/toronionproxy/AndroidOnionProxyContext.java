@@ -36,6 +36,11 @@ public class AndroidOnionProxyContext implements OnionProxyContext {
     }
 
     @Override
+    public InputStream getGeoIpZip() throws IOException {
+        return context.getResources().getAssets().open("geoip");
+    }
+
+    @Override
     public InputStream getTorExecutableZip() throws IOException {
         return context.getResources().getAssets().open("tor");
     }

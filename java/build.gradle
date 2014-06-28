@@ -78,40 +78,27 @@ artifacts {
 
 
 // Copying content from Android over to Java
-task deleteLibs(type: Delete) {
-    delete 'libs'
-}
-
-task copyLibs(type: Copy, dependsOn: deleteLibs) {
-    from "../android/libs"
-    into 'libs'
-}
-
-task deleteTorOnionProxyTest(type: Delete, dependsOn: copyLibs) {
+task deleteSourceFiles(type: Delete) {
     delete 'src/test/java/com/msopentech/thali/toronionproxy'
+    delete 'src/main/java/com/msopentech/thali/toronionproxy'
+    delete 'src/main/resources/torrc'
+    delete 'src/main/resources/geoip'
 }
 
-task copyTorOnionProxyTest(type: Copy, dependsOn: deleteTorOnionProxyTest) {
+task copyTorOnionProxyTest(type: Copy, dependsOn: deleteSourceFiles) {
     from "../android/src/androidTest/java/com/msopentech/thali/toronionproxy"
     into 'src/test/java/com/msopentech/thali/toronionproxy'
 }
 
-task deleteTorOnionProxyMain(type: Delete, dependsOn: copyTorOnionProxyTest) {
-    delete 'src/main/java/com/msopentech/thali/toronionproxy'
-}
-
-task copyTorOnionProxyMain(type: Copy, dependsOn: deleteTorOnionProxyMain) {
+task copyTorOnionProxyMain(type: Copy, dependsOn: copyTorOnionProxyTest) {
     from "../android/src/main/java/com/msopentech/thali/toronionproxy"
     into 'src/main/java/com/msopentech/thali/toronionproxy'
 }
 
-task deleteTorrc(type: Delete, dependsOn: copyTorOnionProxyMain) {
-    delete 'src/main/resources/torrc'
-}
-
-task copyTorrc(type: Copy, dependsOn: deleteTorrc) {
+task copyResources(type: Copy, dependsOn: copyTorOnionProxyMain) {
     from "../android/src/main/assets/torrc"
+    from "../android/src/main/assets/geoip"
     into 'src/main/resources'
 }
 
-build.dependsOn(copyTorrc)
+build.dependsOn(copyResources)

@@ -57,7 +57,7 @@ public abstract class OnionProxyManager implements EventHandler {
     private static final Logger LOG = LoggerFactory.getLogger(OnionProxyManager.class);
 
     private final OnionProxyContext onionProxyContext;
-    private final File torDirectory, torFile, configFile, doneFile;
+    private final File torDirectory, torFile, geoIpFile, configFile, doneFile;
     private final File cookieFile, pidFile, hostnameFile;
 
     protected volatile boolean running = false;
@@ -76,6 +76,7 @@ public abstract class OnionProxyManager implements EventHandler {
             throw new RuntimeException("Could not create tor working directory");
         }
         torFile = new File(torDirectory, "tor");
+        geoIpFile = new File(torDirectory, "geoip");
         configFile = new File(torDirectory, "torrc");
         doneFile = new File(torDirectory, "done");
         cookieFile = new File(torDirectory, ".tor/control_auth_cookie");
@@ -227,13 +228,17 @@ public abstract class OnionProxyManager implements EventHandler {
     }
 
     private boolean isConfigInstalled() {
-        return configFile.exists() && doneFile.exists();
+        return geoIpFile.exists() && configFile.exists() && doneFile.exists();
     }
 
     private boolean installConfig() {
         InputStream in = null;
         OutputStream out = null;
         try {
+            // Unzip the GeoIP database to the filesystem
+            in = getGeoIpInputStream();
+            out = new FileOutputStream(geoIpFile);
+            copy(in, out);
             // Copy the config file to the filesystem
             in = getConfigInputStream();
             out = new FileOutputStream(configFile);
@@ -254,6 +259,13 @@ public abstract class OnionProxyManager implements EventHandler {
 
     private InputStream getTorInputStream() throws IOException {
         InputStream in = onionProxyContext.getTorExecutableZip();
+        ZipInputStream zin = new ZipInputStream(in);
+        if(zin.getNextEntry() == null) throw new IOException();
+        return zin;
+    }
+
+    private InputStream getGeoIpInputStream() throws IOException {
+        InputStream in = onionProxyContext.getGeoIpZip();
         ZipInputStream zin = new ZipInputStream(in);
         if(zin.getNextEntry() == null) throw new IOException();
         return zin;

@@ -21,23 +21,48 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public class JavaOnionProxyContext implements OnionProxyContext {
+    private File workingDirectory;
+
+    public JavaOnionProxyContext() {
+        workingDirectory = new File("OnionProxyJavaTests");
+        if (workingDirectory.exists() == false && workingDirectory.mkdirs() == false) {
+            throw new RuntimeException("Could not create root directory!");
+        }
+    }
+
     @Override
     public InputStream getTorrc() throws IOException {
-        return null;
+        return getClass().getResourceAsStream("torrc");
+    }
+
+    @Override
+    public InputStream getGeoIpZip() throws IOException {
+        return getClass().getResourceAsStream("geoip");
     }
 
     @Override
     public InputStream getTorExecutableZip() throws IOException {
-        return null;
+        String path = "/native/";
+        String osName = System.getProperty("os.name");
+        if (osName.contains("Windows")) {
+            path += "windows/x86/"; // We currently only support the x86 build but that should work everywhere
+        } else {
+            throw new RuntimeException("We don't support Tor on this OS yet");
+        }
+        return getClass().getResourceAsStream(path + "tor");
     }
 
     @Override
     public File getWorkingDirectory() {
-        return null;
+        return workingDirectory;
     }
 
     @Override
     public WriteObserver generateWriteObserver(File file) {
-        return null;
+        try {
+            return new JavaWatchObserver(file);
+        } catch (IOException e) {
+            throw new RuntimeException("Could not create JavaWatchObserver", e);
+        }
     }
 }

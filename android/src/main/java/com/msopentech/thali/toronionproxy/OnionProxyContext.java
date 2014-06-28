@@ -22,6 +22,7 @@ import java.io.InputStream;
  */
 public interface OnionProxyContext {
     InputStream getTorrc() throws IOException;
+    InputStream getGeoIpZip() throws IOException;
     InputStream getTorExecutableZip() throws IOException;
     File getWorkingDirectory(); // Equivalent of Android Context's getDir
     WriteObserver generateWriteObserver(File file);
