@@ -50,21 +50,22 @@ public abstract class OnionProxyManager implements EventHandler {
     private static final String[] EVENTS = {
             "CIRC", "ORCONN", "NOTICE", "WARN", "ERR"
     };
+
+    private static final String OWNER = "__OwningControllerProcess";
     // TODO: Both SOCKS_PORT and CONTROL_PORT need to be made dynamic
     private static final int SOCKS_PORT = 59052, CONTROL_PORT = 59053;
     private static final int COOKIE_TIMEOUT = 3000; // Milliseconds
     private static final int HOSTNAME_TIMEOUT = 30 * 1000; // Milliseconds
     private static final Logger LOG = LoggerFactory.getLogger(OnionProxyManager.class);
 
-    private final OnionProxyContext onionProxyContext;
-    private final File torDirectory, torFile, geoIpFile, configFile, doneFile;
-    private final File cookieFile, pidFile, hostnameFile;
+    protected final OnionProxyContext onionProxyContext;
+    protected final File torDirectory;
+    private final File geoIpFile, configFile, doneFile;
+    private final File cookieFile, hostnameFile;
 
     protected volatile boolean running = false;
     private volatile boolean networkEnabled = false;
     private volatile boolean bootstrapped = false;
-    private volatile Process tor = null;
-    private volatile int pid = -1;
     private volatile Socket controlSocket = null;
     private volatile TorControlConnection controlConnection = null;
 
@@ -75,12 +76,10 @@ public abstract class OnionProxyManager implements EventHandler {
         if (torDirectory.exists() == false && torDirectory.mkdirs() == false) {
             throw new RuntimeException("Could not create tor working directory");
         }
-        torFile = new File(torDirectory, "tor");
         geoIpFile = new File(torDirectory, "geoip");
         configFile = new File(torDirectory, "torrc");
         doneFile = new File(torDirectory, "done");
         cookieFile = new File(torDirectory, ".tor/control_auth_cookie");
-        pidFile = new File(torDirectory, ".tor/pid");
         hostnameFile = new File(torDirectory, "hostname");
     }
 
@@ -90,25 +89,12 @@ public abstract class OnionProxyManager implements EventHandler {
         try {
             controlSocket = new Socket("127.0.0.1", CONTROL_PORT);
             LOG.info("Tor is already running");
-            if(readPidFile() == -1) {
-                LOG.info("Could not read PID of Tor process");
-                controlSocket.close();
-                killZombieProcess();
-                startProcess = true;
-            } else {
-                // TODO: Shouldn't this only be set to true when message is received on the EventHandler?
-                bootstrapped = true;
-            }
         } catch(IOException e) {
             LOG.info("Tor is not running");
             startProcess = true;
-        }
-        if(startProcess) {
             // Install the binary, possibly overwriting an older version
-            if(!installBinary()) {
-                LOG.warn("Could not install Tor binary");
-                return false;
-            }
+            File torExecutableFile = installBinary();
+
             // Install the GeoIP database and config file if necessary
             if(!isConfigInstalled() && !installConfig()) {
                 LOG.info("Could not install Tor config");
@@ -120,38 +106,47 @@ public abstract class OnionProxyManager implements EventHandler {
                 throw new RuntimeException("Could not create cookieFile parent directory");
             }
 
-            if (cookieFile.createNewFile() == false) {
+            // The original code from Briar watches individual files, not a directory and Android's file observer
+            // won't work on files that don't exist. Rather than take 5 seconds to rewrite Briar's code I instead
+            // just make sure the file exists
+            if (cookieFile.exists() == false && cookieFile.createNewFile() == false) {
                 throw new RuntimeException("Could not create cookieFile");
             }
 
             // Watch for the auth cookie file being created/updated
             WriteObserver cookieObserver = onionProxyContext.generateWriteObserver(cookieFile);
             // Start a new Tor process
-            String torPath = torFile.getAbsolutePath();
+            String torPath = torExecutableFile.getAbsolutePath();
             String configPath = configFile.getAbsolutePath();
-            String[] cmd = { torPath, "-f", configPath };
+            String pid = onionProxyContext.getProcessId();
+            String[] cmd = { torPath, "-f", configPath, OWNER, pid };
             String[] env = { "HOME=" + torDirectory.getAbsolutePath() };
+            Process torProcess;
             try {
-                tor = Runtime.getRuntime().exec(cmd, env, torDirectory);
+                torProcess = Runtime.getRuntime().exec(cmd, env, torDirectory);
             } catch(SecurityException e1) {
                 LOG.warn(e1.toString(), e1);
                 return false;
             }
-            // Log the process's standard output until it detaches
-            Scanner stdout = new Scanner(tor.getInputStream());
-            try {
-                while(stdout.hasNextLine()) LOG.info(stdout.nextLine());
-            } finally {
-                stdout.close();
-            }
+
+            eatStream(torProcess.getInputStream(), false);
+            eatStream(torProcess.getErrorStream(), true);
 
             try {
-                // Wait for the process to detach or exit
-                int exit = tor.waitFor();
-                if(exit != 0) {
-                    LOG.warn("Tor exited with value " + exit);
-                    return false;
+                // On platforms other than Windows we run as a daemon and so we need to wait for the process to detach
+                // or exit. In the case of Windows the equivalent is running as a service and unfortunately that requires
+                // managing the service, such as turning it off or uninstalling it when it's time to move on. Any number
+                // of errors can prevent us from doing the cleanup and so we would leave the process running around. Rather
+                // than do that on Windows we just let the process run on the exec and hence we don't have a good way
+                // of detecting any problems it has.
+                if (OsData.getOsType() != OsData.OsType.Windows) {
+                    int exit = torProcess.waitFor();
+                    if(exit != 0) {
+                        LOG.warn("Tor exited with value " + exit);
+                        return false;
+                    }
                 }
+
                 // Wait for the auth cookie file to be created/updated
                 if(!cookieObserver.poll(COOKIE_TIMEOUT, MILLISECONDS)) {
                     LOG.warn("Auth cookie not created");
@@ -167,65 +162,59 @@ public abstract class OnionProxyManager implements EventHandler {
             controlSocket = new Socket("127.0.0.1", CONTROL_PORT);
         }
         running = true;
-        // Read the PID of the Tor process so we can kill it if necessary
-        pid = readPidFile();
         // Open a control connection and authenticate using the cookie file
         controlConnection = new TorControlConnection(controlSocket);
         controlConnection.authenticate(read(cookieFile));
         // Tell Tor to exit when the control connection is closed
         controlConnection.takeOwnership();
+        controlConnection.resetConf(Arrays.asList(OWNER));
         // Register to receive events from the Tor process
         controlConnection.setEventHandler(this);
         controlConnection.setEvents(Arrays.asList(EVENTS));
+        // If Tor was already running, find out whether it's bootstrapped
+        if(!startProcess) {
+            String phase = controlConnection.getInfo("status/bootstrap-phase");
+            if(phase != null && phase.contains("PROGRESS=100")) {
+                LOG.info("Tor has already bootstrapped");
+                bootstrapped = true;
+            }
+        }
         return true;
     }
 
-    /**
-     * It's easy to leave tor processes hanging around. To deal with this apps that have strong life cycle management
-     * will want a way to hook Tor cleanup code into that management. This method returns a runnable that will
-     * clean up the tor bits that can then be hooked in to the life cycle management.
-     * @return
-     */
-    public Runnable getShutdownRunnable() {
-        return new Runnable() {
+    private void eatStream(final InputStream inputStream, final boolean stdError) {
+        new Thread() {
+            @Override
             public void run() {
-                killTorProcess();
-                killZombieProcess();
+                Scanner scanner = new Scanner(inputStream);
+                try {
+                    while(scanner.hasNextLine()) {
+                        if (stdError) {
+                            LOG.error(scanner.nextLine());
+                        } else {
+                            LOG.info(scanner.nextLine());
+                        }
+                    }
+                } finally {
+                    try {
+                        inputStream.close();
+                    } catch (IOException e) {
+                        LOG.error("Couldn't close input stream in eatStream", e);
+                    }
+                }
             }
-        };
+        }.start();
     }
 
     public int getSocksPort() {
         return SOCKS_PORT;
     }
 
-    // TODO: Figure out if the process name (which we use to find zombies) is just the file name and if so figure
-    // out how we can dynamically change the executable name (which should work) so we don't collide. This has
-    // implications for storing the name and could potentially end up with us losing a binary forever if we forget
-    // the name we used so we do need to think through this. But it could be as easy as just letting an app suggest
-    // some name (munging a domain name perhaps) and then running on that.
-    private boolean installBinary() {
-        InputStream in = null;
-        OutputStream out = null;
-        try {
-            // Unzip the Tor binary to the filesystem
-            in = getTorInputStream();
-            out = new FileOutputStream(torFile);
-            copy(in, out);
-            // Make the Tor binary executable
-            if(!setExecutable(torFile)) {
-                LOG.warn("Could not make Tor executable");
-                return false;
-            }
-            return true;
-        } catch(IOException e) {
-            LOG.warn(e.toString(), e);
-            return false;
-        } finally {
-            tryToClose(in);
-            tryToClose(out);
-        }
-    }
+    /**
+     * Installs the Tor Onion Proxy binaries
+     * @return binary to execute from the command line
+     */
+    abstract protected File installBinary();
 
     private boolean isConfigInstalled() {
         return geoIpFile.exists() && configFile.exists() && doneFile.exists();
@@ -236,13 +225,30 @@ public abstract class OnionProxyManager implements EventHandler {
         OutputStream out = null;
         try {
             // Unzip the GeoIP database to the filesystem
-            in = getGeoIpInputStream();
+            in = getZipInputStream(onionProxyContext.getGeoIpZip());
             out = new FileOutputStream(geoIpFile);
             copy(in, out);
             // Copy the config file to the filesystem
             in = getConfigInputStream();
             out = new FileOutputStream(configFile);
             copy(in, out);
+            // We need to edit the config file to specify exactly where the cookie/geoip files should be stored, on
+            // Android this is always a fixed location relative to the configFiles which is why this extra step
+            // wasn't needed in Briar's Android code. But in Windows it ends up in the user's AppData/Roaming. Rather
+            // than track it down we just tell Tor where to put it.
+            PrintWriter printWriter = null;
+            try {
+                printWriter = new PrintWriter(new BufferedWriter(new FileWriter(configFile, true)));
+                printWriter.println("CookieAuthFile " + cookieFile.getAbsolutePath());
+                // For some reason the GeoIP's location can only be given as a file name, not a path and it has
+                // to be in the data directory so we need to set both
+                printWriter.println("DataDirectory " + geoIpFile.getParentFile().getAbsolutePath());
+                printWriter.println("GeoIPFile " + geoIpFile.getName());
+            } finally {
+                if (printWriter != null) {
+                    printWriter.close();
+                }
+            }
             // Create a file to indicate that installation succeeded
             if (doneFile.createNewFile() == false) {
                 throw new RuntimeException("Could not create doneFile");
@@ -257,17 +263,16 @@ public abstract class OnionProxyManager implements EventHandler {
         }
     }
 
-    private InputStream getTorInputStream() throws IOException {
-        InputStream in = onionProxyContext.getTorExecutableZip();
+    /**
+     * Reads the input stream of a zip file, unzips it and returns
+     * the output stream for the first file inside the zip file.
+     * @param in Input stream of zipped file
+     * @return Output stream of first file in zip file
+     * @throws IOException
+     */
+    protected InputStream getZipInputStream(InputStream in) throws IOException {
         ZipInputStream zin = new ZipInputStream(in);
-        if(zin.getNextEntry() == null) throw new IOException();
-        return zin;
-    }
-
-    private InputStream getGeoIpInputStream() throws IOException {
-        InputStream in = onionProxyContext.getGeoIpZip();
-        ZipInputStream zin = new ZipInputStream(in);
-        if(zin.getNextEntry() == null) throw new IOException();
+        if (zin.getNextEntry() == null) throw new IOException();
         return zin;
     }
 
@@ -275,7 +280,27 @@ public abstract class OnionProxyManager implements EventHandler {
         return onionProxyContext.getTorrc();
     }
 
-    private void copy(InputStream in, OutputStream out) throws IOException {
+    /**
+     * Closes both input and output streams when done.
+     * @param in
+     * @param out
+     * @throws IOException
+     */
+    protected void copy(InputStream in, OutputStream out) throws IOException {
+        try {
+            copyDontCloseInput(in, out);
+        } finally {
+            in.close();
+        }
+    }
+
+    /**
+     * Won't close the input stream when it's done, needed to handle ZipInputStreams
+     * @param in Won't be closed
+     * @param out Will be closed
+     * @throws IOException
+     */
+    protected void copyDontCloseInput(InputStream in, OutputStream out) throws IOException {
         try {
             byte[] buf = new byte[4096];
             while(true) {
@@ -284,7 +309,6 @@ public abstract class OnionProxyManager implements EventHandler {
                 out.write(buf, 0, read);
             }
         } finally {
-            in.close();
             out.close();
         }
     }
@@ -297,7 +321,7 @@ public abstract class OnionProxyManager implements EventHandler {
      */
     abstract protected boolean setExecutable(File f);
 
-    private void tryToClose(Closeable closeable) {
+    protected void tryToClose(Closeable closeable) {
         try {
             if(closeable != null) closeable.close();
         } catch(IOException e) {
@@ -323,36 +347,6 @@ public abstract class OnionProxyManager implements EventHandler {
             return b;
         } finally {
             in.close();
-        }
-    }
-
-    private int readPidFile() {
-        // Read the PID of the Tor process so we can kill it if necessary
-        try {
-            return Integer.parseInt(new String(read(pidFile), "UTF-8").trim());
-        } catch(IOException e) {
-            LOG.warn("Could not read PID file", e);
-        } catch(NumberFormatException e) {
-            LOG.warn("Could not parse PID file", e);
-        }
-        return -1;
-    }
-
-    /**
-     * Android has some problems with spawned processes having a life of their own even when the parent is killed.
-     * In other OS's the problem is less extreme. We use this abstract method as a hook for the code to deal with this
-     * issue in each environment.
-     */
-    abstract protected void killZombieProcess();
-
-    private void killTorProcess() {
-        if(tor != null) {
-            LOG.info("Killing Tor via destroy()");
-            tor.destroy();
-        }
-        if(pid != -1) {
-            LOG.info("Killing Tor via killProcess(" + pid + ")");
-            android.os.Process.killProcess(pid);
         }
     }
 
@@ -430,8 +424,6 @@ public abstract class OnionProxyManager implements EventHandler {
             if (controlSocket != null) {
                 controlSocket.close();
             }
-            killTorProcess();
-            killZombieProcess();
         }
     }
 
@@ -493,5 +485,15 @@ public abstract class OnionProxyManager implements EventHandler {
             s.append(id.substring(1, 7));
         }
         return s.toString();
+    }
+
+    public static void recursiveFileDelete(File fileOrDirectory) {
+        if (fileOrDirectory.isDirectory()) {
+            for (File child : fileOrDirectory.listFiles()) {
+                recursiveFileDelete(child);
+            }
+        }
+
+        fileOrDirectory.delete();
     }
 }

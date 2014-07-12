@@ -54,4 +54,9 @@ public class AndroidOnionProxyContext implements OnionProxyContext {
     public WriteObserver generateWriteObserver(File file) {
         return new AndroidWriteObserver(file);
     }
+
+    @Override
+    public String getProcessId() {
+        return String.valueOf(android.os.Process.myPid());
+    }
 }

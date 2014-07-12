@@ -14,6 +14,7 @@ See the Apache 2 License for the specific language governing permissions and lim
 package com.msopentech.thali.java.toronionproxy;
 
 import com.msopentech.thali.toronionproxy.OnionProxyContext;
+import com.msopentech.thali.toronionproxy.OsData;
 import com.msopentech.thali.toronionproxy.WriteObserver;
 
 import java.io.File;
@@ -32,12 +33,12 @@ public class JavaOnionProxyContext implements OnionProxyContext {
 
     @Override
     public InputStream getTorrc() throws IOException {
-        return getClass().getResourceAsStream("torrc");
+        return getClass().getResourceAsStream("/torrc");
     }
 
     @Override
     public InputStream getGeoIpZip() throws IOException {
-        return getClass().getResourceAsStream("geoip");
+        return getClass().getResourceAsStream("/geoip");
     }
 
     @Override
@@ -64,5 +65,12 @@ public class JavaOnionProxyContext implements OnionProxyContext {
         } catch (IOException e) {
             throw new RuntimeException("Could not create JavaWatchObserver", e);
         }
+    }
+
+    @Override
+    public String getProcessId() {
+        // This is a horrible hack. It seems like more JVMs will return the process's PID this way, but not guarantees.
+        String processName = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
+        return processName.split("@")[0];
     }
 }

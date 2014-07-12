@@ -26,4 +26,5 @@ public interface OnionProxyContext {
     InputStream getTorExecutableZip() throws IOException;
     File getWorkingDirectory(); // Equivalent of Android Context's getDir
     WriteObserver generateWriteObserver(File file);
+    String getProcessId();
 }

@@ -41,8 +41,7 @@ import com.msopentech.thali.toronionproxy.OnionProxyManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.util.Scanner;
 
 import static android.content.Context.CONNECTIVITY_SERVICE;
@@ -88,59 +87,6 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
         }
     }
 
-    /*
-     * If the app crashes, leaving a Tor process running, and the user clears
-     * the app's data, removing the PID file and auth cookie file, it's no
-     * longer possible to communicate with the zombie process and it must be
-     * killed. ActivityManager.killBackgroundProcesses() doesn't seem to work
-     * in this case, so we must parse the output of ps to get the PID.
-     * <p>
-     * On all devices we've tested, the output consists of a header line
-     * followed by one line per process. The second column is the PID and the
-     * last column is the process name, which includes the app's package name.
-     * On some devices tested by the Guardian Project, the first column is the
-     * PID.
-     */
-    public void killZombieProcess() {
-        String packageName = "/" + context.getPackageName() + "/";
-        try {
-            // Parse the output of ps
-            Process ps = Runtime.getRuntime().exec("ps");
-            Scanner scanner = new Scanner(ps.getInputStream());
-            // Discard the header line
-            if(scanner.hasNextLine()) scanner.nextLine();
-            // Look for any Tor processes with our package name
-            boolean found = false;
-            while(scanner.hasNextLine()) {
-                String[] columns = scanner.nextLine().split("\\s+");
-                if(columns.length < 3) continue;
-                int pid;
-                try {
-                    pid = Integer.parseInt(columns[1]);
-                } catch(NumberFormatException e) {
-                    try {
-                        pid = Integer.parseInt(columns[0]);
-                    } catch(NumberFormatException e1) {
-                        continue;
-                    }
-                }
-                String name = columns[columns.length - 1];
-                if(name.contains(packageName) && name.endsWith("/tor")) {
-                    LOG.info("Killing zombie process " + pid);
-                    android.os.Process.killProcess(pid);
-                    found = true;
-                }
-            }
-            if(!found) LOG.info("No zombies found");
-            scanner.close();
-        } catch(IOException e) {
-            LOG.warn("Could not parse ps output", e);
-        } catch(SecurityException e) {
-            LOG.warn("Could not execute ps", e);
-        }
-    }
-
-
     @SuppressLint("NewApi")
     public boolean setExecutable(File f) {
         if(Build.VERSION.SDK_INT >= 9) {
@@ -158,6 +104,28 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
                 LOG.warn(e.toString(), e);
             }
             return false;
+        }
+    }
+
+    protected File installBinary() {
+        InputStream in = null;
+        OutputStream out = null;
+        try {
+            File executableFile = new File(torDirectory, "tor");
+            // Unzip the Tor binary to the filesystem
+            in = getZipInputStream(onionProxyContext.getTorExecutableZip());
+            out = new FileOutputStream(executableFile);
+            copy(in, out);
+            // Make the Tor binary executable
+            if(!setExecutable(executableFile)) {
+                throw new RuntimeException("Could not make Tor executable");
+            }
+            return executableFile;
+        } catch(IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            tryToClose(in);
+            tryToClose(out);
         }
     }
 

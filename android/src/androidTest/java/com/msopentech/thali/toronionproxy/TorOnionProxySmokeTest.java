@@ -74,7 +74,6 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.net.*;
 import java.util.Calendar;
-import java.util.Timer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -88,8 +87,16 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         onionProxyManager.stop();
     }
 
-    public void testCleanInstall() throws IOException, InterruptedException {
+    public void testCleanInstallStopAndReRun() throws IOException, InterruptedException {
         deleteTorWorkingDirectory();
+        OnionProxyManager onionProxyManager = OpenHiddenServiceAndTest();
+        onionProxyManager.stop();
+        blockOrFail(onionProxyManager, false);
+        // After stopping we run again to make sure that nothing stops an app from stopping and starting again
+        OpenHiddenServiceAndTest();
+    }
+
+    private OnionProxyManager OpenHiddenServiceAndTest() throws IOException, InterruptedException {
         OnionProxyManager onionProxyManager = getOnionProxyManager();
         assertTrue(onionProxyManager.start());
         onionProxyManager.enableNetwork(true);
@@ -102,31 +109,34 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
 
         CountDownLatch countDownLatch = receiveExpectedBytes(testBytes, localPort);
 
-        blockOrFail(onionProxyManager);
+        blockOrFail(onionProxyManager, true);
 
         Socket clientSocket = getClientSocket(onionAddress, hiddenServicePort, onionProxyManager.getSocksPort());
 
         DataOutputStream clientOutputStream = new DataOutputStream(clientSocket.getOutputStream());
         clientOutputStream.write(testBytes);
         clientOutputStream.flush();
-        assertTrue(countDownLatch.await(1, TimeUnit.MINUTES));
+        assertTrue(countDownLatch.await(2, TimeUnit.MINUTES));
+
+        return onionProxyManager;
     }
 
     /**
      * Dorky and yes we could use a listener but I'm trying to decide how we want to handle this.
      * @param onionProxyManager
+     * @param isRunning
      */
-    private void blockOrFail(OnionProxyManager onionProxyManager) throws InterruptedException {
+    private void blockOrFail(OnionProxyManager onionProxyManager, boolean isRunning) throws InterruptedException {
         long timeToExit = Calendar.getInstance().getTimeInMillis() + 60*1000;
-        int totalTimeWaited = 0;
-        while(Calendar.getInstance().getTimeInMillis() < timeToExit  && onionProxyManager.isRunning() == false) {
+        while(Calendar.getInstance().getTimeInMillis() < timeToExit  && onionProxyManager.isRunning() != isRunning) {
             Thread.sleep(1000,0);
         }
 
-        if (onionProxyManager.isRunning() == false) {
-            throw new RuntimeException("After wait time the Tor OP still isn't configured!");
+        if (onionProxyManager.isRunning() != isRunning) {
+            throw new RuntimeException("After wait time isRunning isn't " + isRunning);
         }
     }
+
 
     /**
      * It can take awhile for a new hidden service to get registered
@@ -137,7 +147,7 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
      */
     private Socket getClientSocket(String onionAddress, int hiddenServicePort, int socksPort)
             throws InterruptedException {
-        long timeToExit = Calendar.getInstance().getTimeInMillis() + 2*60*1000;
+        long timeToExit = Calendar.getInstance().getTimeInMillis() + 3*60*1000;
         Socket clientSocket = null;
         while (Calendar.getInstance().getTimeInMillis() < timeToExit && clientSocket == null) {
             try {
@@ -179,10 +189,15 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
                     // I suddenly am getting IncompatibleClassChangeError: interface no implemented when
                     // calling these functions. I saw a random Internet claim (therefore it must be true!)
                     // that closeable is only supported on sockets in API 19 but I'm compiling with 19 (although
-                    // targetting 18). To make things even weirder, this test passed before!!! I am soooo confused.
-                    // But since this is a test I can live with the dangling sockets if I have to.
-                    //closeClosable(receivedSocket); \
-                    //closeClosable(serverSocket);
+                    // targeting 18). To make things even weirder, this test passed before!!! I am soooo confused.
+                    try {
+                        if (receivedSocket != null) {
+                            receivedSocket.close();
+                        }
+                        serverSocket.close();
+                    } catch (IOException e) {
+                        LOG.error("Close failed!", e);
+                    }
                 }
             }
         }).start();
@@ -200,37 +215,14 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         }
     }
 
-    public void testCleanReRun() throws IOException {
-        OnionProxyManager onionProxyManager = getOnionProxyManager();
-        assertTrue(onionProxyManager.start());
-        onionProxyManager.stop();
-        assertTrue(onionProxyManager.start());
-    }
-
-    public void testABadStop() throws IOException {
-        OnionProxyManager onionProxyManager = getOnionProxyManager();
-        assertTrue(onionProxyManager.start());
-        assertTrue(onionProxyManager.start());
-    }
-
     private void deleteTorWorkingDirectory() {
         OnionProxyContext onionProxyContext = getOnionProxyContext();
         File torWorkingDirectory =
                 new File(onionProxyContext.getWorkingDirectory(), OnionProxyManager.torWorkingDirectoryName);
-        recursiveFileDelete(torWorkingDirectory);
+        OnionProxyManager.recursiveFileDelete(torWorkingDirectory);
         if (torWorkingDirectory.mkdirs() == false) {
             throw new RuntimeException("couldn't create Tor Working Directory after deleting it.");
         }
-    }
-
-    private void recursiveFileDelete(File fileOrDirectory) {
-        if (fileOrDirectory.isDirectory()) {
-            for (File child : fileOrDirectory.listFiles()) {
-                recursiveFileDelete(child);
-            }
-        }
-
-        fileOrDirectory.delete();
     }
 
     private Socket socks4aSocketConnection(String networkHost, int networkPort, String socksHost, int socksPort)

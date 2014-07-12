@@ -13,16 +13,18 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.local.toronionproxy;
 
+import com.msopentech.thali.java.toronionproxy.JavaOnionProxyContext;
+import com.msopentech.thali.java.toronionproxy.JavaOnionProxyManager;
 import com.msopentech.thali.toronionproxy.OnionProxyContext;
 import com.msopentech.thali.toronionproxy.OnionProxyManager;
 import junit.framework.TestCase;
 
 public class TorOnionProxyTestCase extends TestCase {
     public OnionProxyManager getOnionProxyManager() {
-
+        return new JavaOnionProxyManager(new JavaOnionProxyContext());
     }
 
     public OnionProxyContext getOnionProxyContext() {
-
+        return new JavaOnionProxyContext();
     }
 }
