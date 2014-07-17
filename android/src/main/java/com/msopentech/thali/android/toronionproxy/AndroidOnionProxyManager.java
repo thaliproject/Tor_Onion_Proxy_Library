@@ -37,12 +37,12 @@ import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
+import com.msopentech.thali.toronionproxy.FileUtilities;
 import com.msopentech.thali.toronionproxy.OnionProxyManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.util.Scanner;
 
 import static android.content.Context.CONNECTIVITY_SERVICE;
 import static android.net.ConnectivityManager.CONNECTIVITY_ACTION;
@@ -68,8 +68,8 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
     }
 
     @Override
-    public boolean start() throws IOException {
-        if (super.start()) {
+    public boolean installAndStartTorOp() throws IOException {
+        if (super.installAndStartTorOp()) {
             // Register to receive network status events
             networkStateReceiver = new NetworkStateReceiver();
             IntentFilter filter = new IntentFilter(CONNECTIVITY_ACTION);
@@ -88,7 +88,7 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
     }
 
     @SuppressLint("NewApi")
-    public boolean setExecutable(File f) {
+    protected boolean setExecutable(File f) {
         if(Build.VERSION.SDK_INT >= 9) {
             return f.setExecutable(true, true);
         } else {
@@ -107,33 +107,15 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
         }
     }
 
-    protected File installBinary() {
-        InputStream in = null;
-        OutputStream out = null;
-        try {
-            File executableFile = new File(torDirectory, "tor");
-            // Unzip the Tor binary to the filesystem
-            in = getZipInputStream(onionProxyContext.getTorExecutableZip());
-            out = new FileOutputStream(executableFile);
-            copy(in, out);
-            // Make the Tor binary executable
-            if(!setExecutable(executableFile)) {
-                throw new RuntimeException("Could not make Tor executable");
-            }
-            return executableFile;
-        } catch(IOException e) {
-            throw new RuntimeException(e);
-        } finally {
-            tryToClose(in);
-            tryToClose(out);
-        }
-    }
-
     private class NetworkStateReceiver extends BroadcastReceiver {
-
         @Override
         public void onReceive(Context ctx, Intent i) {
-            if(!running) return;
+            try {
+                if(!isRunning()) return;
+            } catch (IOException e) {
+                LOG.info("Did someone call before Tor was ready?", e);
+                return;
+            }
             boolean online = !i.getBooleanExtra(EXTRA_NO_CONNECTIVITY, false);
             if(online) {
                 // Some devices fail to set EXTRA_NO_CONNECTIVITY, double check

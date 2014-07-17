@@ -29,14 +29,17 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.toronionproxy;
 
-import net.freehaven.tor.control.EventHandler;
+import net.freehaven.tor.control.ConfigEntry;
 import net.freehaven.tor.control.TorControlConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Scanner;
+import java.util.concurrent.CountDownLatch;
 import java.util.zip.ZipInputStream;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -44,7 +47,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 /**
  * This class began life is TorPlugin from the Briar Project
  */
-public abstract class OnionProxyManager implements EventHandler {
+public abstract class OnionProxyManager {
     public static final String torWorkingDirectoryName = "tor";
 
     private static final String[] EVENTS = {
@@ -52,22 +55,20 @@ public abstract class OnionProxyManager implements EventHandler {
     };
 
     private static final String OWNER = "__OwningControllerProcess";
-    // TODO: Both SOCKS_PORT and CONTROL_PORT need to be made dynamic
-    private static final int SOCKS_PORT = 59052, CONTROL_PORT = 59053;
     private static final int COOKIE_TIMEOUT = 3000; // Milliseconds
     private static final int HOSTNAME_TIMEOUT = 30 * 1000; // Milliseconds
     private static final Logger LOG = LoggerFactory.getLogger(OnionProxyManager.class);
 
     protected final OnionProxyContext onionProxyContext;
     protected final File torDirectory;
-    private final File geoIpFile, configFile, doneFile;
+    private final File geoIpFile, configFile;
     private final File cookieFile, hostnameFile;
 
-    protected volatile boolean running = false;
-    private volatile boolean networkEnabled = false;
-    private volatile boolean bootstrapped = false;
     private volatile Socket controlSocket = null;
+    // If controlConnection is not null then this means that a connection exists and the Tor OP will die when
+    // the connection fails
     private volatile TorControlConnection controlConnection = null;
+    private volatile int control_port;
 
     public OnionProxyManager(OnionProxyContext onionProxyContext) {
         this.onionProxyContext = onionProxyContext;
@@ -78,111 +79,327 @@ public abstract class OnionProxyManager implements EventHandler {
         }
         geoIpFile = new File(torDirectory, "geoip");
         configFile = new File(torDirectory, "torrc");
-        doneFile = new File(torDirectory, "done");
         cookieFile = new File(torDirectory, ".tor/control_auth_cookie");
-        hostnameFile = new File(torDirectory, "hostname");
+        hostnameFile = new File(torDirectory, "/hiddenservice/hostname");
     }
 
-    public boolean start() throws IOException {
-        // Try to connect to an existing Tor process if there is one
-        boolean startProcess = false;
-        try {
-            controlSocket = new Socket("127.0.0.1", CONTROL_PORT);
-            LOG.info("Tor is already running");
-        } catch(IOException e) {
-            LOG.info("Tor is not running");
-            startProcess = true;
-            // Install the binary, possibly overwriting an older version
-            File torExecutableFile = installBinary();
+    /**
+     * This is a blocking call that will try to start the Tor OP, connect it to the network and get it to be fully
+     * boostrapped. Sometimes the bootstrap process just hangs for no apparent reason so the method will wait for the
+     * given time for bootstrap to finish and if it doesn't then will restart the bootstrap process the given number of
+     * repeats.
+     * @param secondsBeforeTimeOut Seconds to wait for boot strapping to finish
+     * @param numberOfRetries Number of times to try recycling the Tor OP before giving up on bootstrapping working
+     * @return True if bootsrap succeeded, false if there is a problem or the bootstrap couldn't complete in the given
+     * time.
+     */
+    public boolean startWithRepeat(int secondsBeforeTimeOut, int numberOfRetries)
+            throws IOException, InterruptedException {
+        if (secondsBeforeTimeOut <= 0 || numberOfRetries < 0) {
+            throw new IllegalArgumentException("secondsBeforeTimeOut >= 0 & numberOfRetries > 0");
+        }
 
-            // Install the GeoIP database and config file if necessary
-            if(!isConfigInstalled() && !installConfig()) {
-                LOG.info("Could not install Tor config");
+        for(int retryCount = 0; retryCount < numberOfRetries; ++retryCount) {
+            if (installAndStartTorOp() == false) {
                 return false;
             }
-            LOG.info("Starting Tor");
-            if (cookieFile.getParentFile().exists() == false &&
-                    cookieFile.getParentFile().mkdirs() == false) {
-                throw new RuntimeException("Could not create cookieFile parent directory");
+            enableNetwork(true);
+
+            // We will check every second to see if boot strapping has finally finished
+            for(int secondsWaited = 0; secondsWaited < secondsBeforeTimeOut; ++secondsWaited) {
+                if (isBootstrapped() == false) {
+                    Thread.sleep(1000,0);
+                } else {
+                    return true;
+                }
             }
 
-            // The original code from Briar watches individual files, not a directory and Android's file observer
-            // won't work on files that don't exist. Rather than take 5 seconds to rewrite Briar's code I instead
-            // just make sure the file exists
-            if (cookieFile.exists() == false && cookieFile.createNewFile() == false) {
-                throw new RuntimeException("Could not create cookieFile");
-            }
+            // Bootstrapping isn't over so we need to restart and try again
+            stop();
+            // It can take a little bit for the Tor OP to detect the connection is dead and kill itself
+            Thread.sleep(1000,0);
+        }
 
-            // Watch for the auth cookie file being created/updated
-            WriteObserver cookieObserver = onionProxyContext.generateWriteObserver(cookieFile);
-            // Start a new Tor process
-            String torPath = torExecutableFile.getAbsolutePath();
-            String configPath = configFile.getAbsolutePath();
-            String pid = onionProxyContext.getProcessId();
-            String[] cmd = { torPath, "-f", configPath, OWNER, pid };
-            String[] env = { "HOME=" + torDirectory.getAbsolutePath() };
-            Process torProcess;
+        return false;
+    }
+
+    /**
+     * Finds a socks port that is running on an IPv4 localhost address.
+     * @return Discovered socks port
+     * @throws IOException
+     */
+    public int getIPv4LocalHostSocksPort() throws IOException {
+        if (isRunning() == false) {
+            throw new RuntimeException("Tor is not running!");
+        }
+
+        // This returns a set of space delimited quoted strings which could be Ipv4, Ipv6 or unix sockets
+        String[] socksIpPorts = controlConnection.getInfo("net/listeners/socks").split(" ");
+
+        for(String address : socksIpPorts) {
+            if (address.contains("\"127.0.0.1:")) {
+                // Remember, the last character will be a " so we have to remove that
+                return Integer.parseInt(address.substring(address.lastIndexOf(":") + 1, address.length() - 1));
+            }
+        }
+
+        throw new RuntimeException("We don't have an Ipv4 localhost binding for socks!");
+    }
+
+    /**
+     * Publishes a hidden service
+     * @param hiddenServicePort The port that the hidden service will accept connections on
+     * @param localPort The local port that the hidden service will relay connections to
+     * @return The hidden service's onion address in the form X.onion.
+     */
+    public String publishHiddenService(int hiddenServicePort, int localPort) throws IOException {
+        if(controlConnection == null) {
+            throw new RuntimeException("Service is not running.");
+        }
+
+        if(!hostnameFile.exists()) {
+            LOG.info("Creating hidden service");
             try {
-                torProcess = Runtime.getRuntime().exec(cmd, env, torDirectory);
-            } catch(SecurityException e1) {
-                LOG.warn(e1.toString(), e1);
-                return false;
-            }
-
-            eatStream(torProcess.getInputStream(), false);
-            eatStream(torProcess.getErrorStream(), true);
-
-            try {
-                // On platforms other than Windows we run as a daemon and so we need to wait for the process to detach
-                // or exit. In the case of Windows the equivalent is running as a service and unfortunately that requires
-                // managing the service, such as turning it off or uninstalling it when it's time to move on. Any number
-                // of errors can prevent us from doing the cleanup and so we would leave the process running around. Rather
-                // than do that on Windows we just let the process run on the exec and hence we don't have a good way
-                // of detecting any problems it has.
-                if (OsData.getOsType() != OsData.OsType.Windows) {
-                    int exit = torProcess.waitFor();
-                    if(exit != 0) {
-                        LOG.warn("Tor exited with value " + exit);
-                        return false;
-                    }
+                if (hostnameFile.getParentFile().exists() == false &&
+                        hostnameFile.getParentFile().mkdirs() == false) {
+                    throw new RuntimeException("Could not create hostnameFile parent directory");
                 }
 
-                // Wait for the auth cookie file to be created/updated
-                if(!cookieObserver.poll(COOKIE_TIMEOUT, MILLISECONDS)) {
-                    LOG.warn("Auth cookie not created");
-                    listFiles(torDirectory);
+                if (hostnameFile.createNewFile() == false) {
+                    throw new RuntimeException("Could not create hostnameFile");
+                }
+
+                // Watch for the hostname file being created/updated
+                WriteObserver hostNameFileObserver = onionProxyContext.generateWriteObserver(hostnameFile);
+                // Use the control connection to update the Tor config
+                List<String> config = Arrays.asList(
+                        "HiddenServiceDir " + hostnameFile.getParentFile().getAbsolutePath(),
+                        "HiddenServicePort " + hiddenServicePort + " 127.0.0.1:" + localPort);
+                controlConnection.setConf(config);
+                controlConnection.saveConf();
+                // Wait for the hostname file to be created/updated
+                if(!hostNameFileObserver.poll(HOSTNAME_TIMEOUT, MILLISECONDS)) {
+                    FileUtilities.listFiles(hostnameFile.getParentFile());
+                    throw new RuntimeException("Wait for hidden service hostname file to be created expired.");
+                }
+            } catch(IOException e) {
+                LOG.warn(e.toString(), e);
+            }
+        }
+        // Publish the hidden service's onion hostname in transport properties
+        String hostname = new String(FileUtilities.read(hostnameFile), "UTF-8").trim();
+        LOG.info("Hidden service " + hostname);
+        return hostname;
+    }
+
+    /**
+     * Kills the Tor OP Process. Once you have called this method nothing is going to work until you either call
+     * startWithRepeat or installAndStartTorOp
+     * @throws IOException
+     */
+    public void stop() throws IOException {
+        try {
+            if (controlConnection == null) {
+                return;
+            }
+            LOG.info("Stopping Tor");
+            controlConnection.setConf("DisableNetwork", "1");
+            controlConnection.shutdownTor("TERM");
+        } catch(IOException e) {
+            LOG.warn(e.toString(), e);
+        } finally {
+            if (controlSocket != null) {
+                controlSocket.close();
+            }
+            controlConnection = null;
+            controlSocket = null;
+        }
+    }
+
+    /**
+     * Checks to see if the Tor OP is running (e.g. fully bootstrapped) and open to network connections.
+     * @return
+     * @throws IOException
+     */
+    public boolean isRunning() throws IOException {
+        return isBootstrapped() && isNetworkEnabled();
+    }
+
+    /**
+     * Tells the Tor OP if it should accept network connections
+     * @param enable If true then the Tor OP will accept SOCKS connections, otherwise not.
+     * @throws IOException
+     */
+    public void enableNetwork(boolean enable) throws IOException {
+        if(controlConnection == null) {
+            throw new RuntimeException("Tor is not running!");
+        }
+        LOG.info("Enabling network: " + enable);
+        controlConnection.setConf("DisableNetwork", enable ? "0" : "1");
+    }
+
+    /**
+     * Specifies if Tor OP is accepting network connections
+     * @return
+     * @throws IOException
+     */
+    public boolean isNetworkEnabled() throws IOException {
+        if (controlConnection == null) {
+            throw new RuntimeException("Tor is not running!");
+        }
+
+        List<ConfigEntry> disableNetworkSettingValues = controlConnection.getConf("DisableNetwork");
+        boolean result = false;
+        // It's theoretically possible for us to get multiple values back, if even one is false then we will
+        // assume all are false
+        for(ConfigEntry configEntry : disableNetworkSettingValues) {
+            if (configEntry.value.equals("1")) {
+                return false;
+            } else {
+                result = true;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Determines if the boot strap process has completed.
+     * @return
+     */
+    public boolean isBootstrapped() {
+        if (controlConnection == null) {
+            return false;
+        }
+
+        String phase = null;
+        try {
+            phase = controlConnection.getInfo("status/bootstrap-phase");
+        } catch (IOException e) {
+            LOG.warn("Control connection is not responding properly to getInfo", e);
+        }
+
+        if(phase != null && phase.contains("PROGRESS=100")) {
+            LOG.info("Tor has already bootstrapped");
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Installs all necessary files and starts the Tor OP in offline mode (e.g. networkEnabled(false)). This would
+     * only be used if you wanted to start the Tor OP so that the install and related is all done but aren't ready to
+     * actually connect it to the network.
+     * @return True if all files installed and Tor OP successfully started
+     * @throws IOException
+     */
+    public synchronized boolean installAndStartTorOp() throws IOException {
+        // The Tor OP will die if it looses the connection to its socket so if there is no controlSocket defined
+        // then Tor is dead. This assumes, of course, that takeOwnership works and we can't end up with Zombies.
+        if (controlConnection != null) {
+            LOG.info("Tor is already running");
+            return true;
+        }
+
+        // The code below is why this method is synchronized, we don't want two instances of it running at once
+        // as the result would be a mess of screwed up files and connections.
+        LOG.info("Tor is not running");
+
+        // Install the binary, possibly overwriting an older version
+        File torExecutableFile = installBinary();
+
+        // Install the GeoIP database and config file
+        if(!installConfig()) {
+            LOG.info("Could not install Tor config");
+            return false;
+        }
+
+        LOG.info("Starting Tor");
+        if (cookieFile.getParentFile().exists() == false &&
+                cookieFile.getParentFile().mkdirs() == false) {
+            throw new RuntimeException("Could not create cookieFile parent directory");
+        }
+
+        // The original code from Briar watches individual files, not a directory and Android's file observer
+        // won't work on files that don't exist. Rather than take 5 seconds to rewrite Briar's code I instead
+        // just make sure the file exists
+        if (cookieFile.exists() == false && cookieFile.createNewFile() == false) {
+            throw new RuntimeException("Could not create cookieFile");
+        }
+
+        // Watch for the auth cookie file being created/updated
+        WriteObserver cookieObserver = onionProxyContext.generateWriteObserver(cookieFile);
+        // Start a new Tor process
+        String torPath = torExecutableFile.getAbsolutePath();
+        String configPath = configFile.getAbsolutePath();
+        String pid = onionProxyContext.getProcessId();
+        String[] cmd = { torPath, "-f", configPath, OWNER, pid };
+        String[] env = { "HOME=" + torDirectory.getAbsolutePath() };
+        Process torProcess = null;
+        boolean startWorked = false;
+        try {
+            torProcess = Runtime.getRuntime().exec(cmd, env, torDirectory);
+            CountDownLatch controlPortCountDownLatch = new CountDownLatch(1);
+            eatStream(torProcess.getInputStream(), false, controlPortCountDownLatch);
+            eatStream(torProcess.getErrorStream(), true, null);
+
+            // On platforms other than Windows we run as a daemon and so we need to wait for the process to detach
+            // or exit. In the case of Windows the equivalent is running as a service and unfortunately that requires
+            // managing the service, such as turning it off or uninstalling it when it's time to move on. Any number
+            // of errors can prevent us from doing the cleanup and so we would leave the process running around. Rather
+            // than do that on Windows we just let the process run on the exec and hence we don't have a good way
+            // of detecting any problems it has.
+            if (OsData.getOsType() != OsData.OsType.Windows) {
+                int exit = torProcess.waitFor();
+                torProcess = null;
+                if(exit != 0) {
+                    LOG.warn("Tor exited with value " + exit);
                     return false;
                 }
-            } catch(InterruptedException e1) {
-                LOG.warn("Interrupted while starting Tor");
-                Thread.currentThread().interrupt();
+            }
+
+            // Wait for the auth cookie file to be created/updated
+            if(!cookieObserver.poll(COOKIE_TIMEOUT, MILLISECONDS)) {
+                LOG.warn("Auth cookie not created");
+                FileUtilities.listFiles(torDirectory);
                 return false;
             }
+
             // Now we should be able to connect to the new process
-            controlSocket = new Socket("127.0.0.1", CONTROL_PORT);
-        }
-        running = true;
-        // Open a control connection and authenticate using the cookie file
-        controlConnection = new TorControlConnection(controlSocket);
-        controlConnection.authenticate(read(cookieFile));
-        // Tell Tor to exit when the control connection is closed
-        controlConnection.takeOwnership();
-        controlConnection.resetConf(Arrays.asList(OWNER));
-        // Register to receive events from the Tor process
-        controlConnection.setEventHandler(this);
-        controlConnection.setEvents(Arrays.asList(EVENTS));
-        // If Tor was already running, find out whether it's bootstrapped
-        if(!startProcess) {
-            String phase = controlConnection.getInfo("status/bootstrap-phase");
-            if(phase != null && phase.contains("PROGRESS=100")) {
-                LOG.info("Tor has already bootstrapped");
-                bootstrapped = true;
+            controlPortCountDownLatch.await();
+            controlSocket = new Socket("127.0.0.1", control_port);
+
+            // Open a control connection and authenticate using the cookie file
+            TorControlConnection controlConnection = new TorControlConnection(controlSocket);
+            controlConnection.authenticate(FileUtilities.read(cookieFile));
+            // Tell Tor to exit when the control connection is closed
+            controlConnection.takeOwnership();
+            controlConnection.resetConf(Arrays.asList(OWNER));
+            // Register to receive events from the Tor process
+            controlConnection.setEventHandler(new OnionProxyManagerEventHandler());
+            controlConnection.setEvents(Arrays.asList(EVENTS));
+
+            // We only set the class property once the connection is in a known good state
+            this.controlConnection = controlConnection;
+            return true;
+        } catch(SecurityException e1) {
+            LOG.warn(e1.toString(), e1);
+            return false;
+        } catch(InterruptedException e1) {
+            LOG.warn("Interrupted while starting Tor");
+            Thread.currentThread().interrupt();
+            return false;
+        } finally {
+            if (controlConnection == null && torProcess != null) {
+                // It's possible that something 'bad' could happen after we executed exec but before we takeOwnership()
+                // in which case the Tor OP will hang out as a zombie until this process is killed. This is problematic
+                // when we want to do things like
+                torProcess.destroy();
             }
         }
-        return true;
     }
 
-    private void eatStream(final InputStream inputStream, final boolean stdError) {
+    private void eatStream(final InputStream inputStream, final boolean stdError, final CountDownLatch countDownLatch) {
         new Thread() {
             @Override
             public void run() {
@@ -192,7 +409,17 @@ public abstract class OnionProxyManager implements EventHandler {
                         if (stdError) {
                             LOG.error(scanner.nextLine());
                         } else {
-                            LOG.info(scanner.nextLine());
+                            String nextLine = scanner.nextLine();
+                            // We need to find the line where it tells us what the control port is incase we had
+                            // it pick one automatically.
+                            // The line that will appear in stdio with the control port looks like:
+                            // Control listener listening on port 39717.
+                            if (nextLine.contains("Control listener listening on port ")) {
+                                // For the record, I hate regex so I'm doing this manually
+                                control_port = Integer.parseInt(nextLine.substring(nextLine.lastIndexOf(" ") + 1, nextLine.length() - 1));
+                                countDownLatch.countDown();
+                            }
+                            LOG.info(nextLine);
                         }
                     }
                 } finally {
@@ -206,32 +433,50 @@ public abstract class OnionProxyManager implements EventHandler {
         }.start();
     }
 
-    public int getSocksPort() {
-        return SOCKS_PORT;
+    /**
+     * Installs the Tor Onion Proxy binary
+     * @return binary to execute from the command line
+     */
+    protected File installBinary() {
+        ZipInputStream in = null;
+        OutputStream out = null;
+        try {
+            // Unzip the Tor binary to the filesystem
+            in = new ZipInputStream(onionProxyContext.getTorExecutableZip());
+            File executableFile = new File(torDirectory, in.getNextEntry().getName());
+            if (executableFile.exists() && executableFile.delete() == false) {
+                throw new RuntimeException("Could not clean up Tor binary");
+            }
+            out = new FileOutputStream(executableFile);
+            FileUtilities.copy(in, out);
+
+            // Make the Tor binary executable
+            if(!setExecutable(executableFile)) {
+                throw new RuntimeException("Could not make Tor executable");
+            }
+            return executableFile;
+        } catch(IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            FileUtilities.tryToClose(in);
+            FileUtilities.tryToClose(out);
+        }
     }
 
     /**
-     * Installs the Tor Onion Proxy binaries
-     * @return binary to execute from the command line
+     * Alas old versions of Android do not support setExecutable.
+     * @param f File to make executable
+     * @return True if it worked, otherwise false.
      */
-    abstract protected File installBinary();
+    protected abstract boolean setExecutable(File f);
 
-    private boolean isConfigInstalled() {
-        return geoIpFile.exists() && configFile.exists() && doneFile.exists();
-    }
-
-    private boolean installConfig() {
+    protected boolean installConfig() {
         InputStream in = null;
         OutputStream out = null;
         try {
-            // Unzip the GeoIP database to the filesystem
-            in = getZipInputStream(onionProxyContext.getGeoIpZip());
-            out = new FileOutputStream(geoIpFile);
-            copy(in, out);
-            // Copy the config file to the filesystem
-            in = getConfigInputStream();
-            out = new FileOutputStream(configFile);
-            copy(in, out);
+            FileUtilities.cleanInstallOneFile(onionProxyContext.getGeoIpZip(), geoIpFile);
+
+            FileUtilities.cleanInstallOneFile(onionProxyContext.getTorrc(), configFile);
             // We need to edit the config file to specify exactly where the cookie/geoip files should be stored, on
             // Android this is always a fixed location relative to the configFiles which is why this extra step
             // wasn't needed in Briar's Android code. But in Windows it ends up in the user's AppData/Roaming. Rather
@@ -249,251 +494,13 @@ public abstract class OnionProxyManager implements EventHandler {
                     printWriter.close();
                 }
             }
-            // Create a file to indicate that installation succeeded
-            if (doneFile.createNewFile() == false) {
-                throw new RuntimeException("Could not create doneFile");
-            }
             return true;
         } catch(IOException e) {
             LOG.warn(e.toString(), e);
             return false;
         } finally {
-            tryToClose(in);
-            tryToClose(out);
+            FileUtilities.tryToClose(in);
+            FileUtilities.tryToClose(out);
         }
-    }
-
-    /**
-     * Reads the input stream of a zip file, unzips it and returns
-     * the output stream for the first file inside the zip file.
-     * @param in Input stream of zipped file
-     * @return Output stream of first file in zip file
-     * @throws IOException
-     */
-    protected InputStream getZipInputStream(InputStream in) throws IOException {
-        ZipInputStream zin = new ZipInputStream(in);
-        if (zin.getNextEntry() == null) throw new IOException();
-        return zin;
-    }
-
-    private InputStream getConfigInputStream() throws IOException {
-        return onionProxyContext.getTorrc();
-    }
-
-    /**
-     * Closes both input and output streams when done.
-     * @param in
-     * @param out
-     * @throws IOException
-     */
-    protected void copy(InputStream in, OutputStream out) throws IOException {
-        try {
-            copyDontCloseInput(in, out);
-        } finally {
-            in.close();
-        }
-    }
-
-    /**
-     * Won't close the input stream when it's done, needed to handle ZipInputStreams
-     * @param in Won't be closed
-     * @param out Will be closed
-     * @throws IOException
-     */
-    protected void copyDontCloseInput(InputStream in, OutputStream out) throws IOException {
-        try {
-            byte[] buf = new byte[4096];
-            while(true) {
-                int read = in.read(buf);
-                if(read == -1) break;
-                out.write(buf, 0, read);
-            }
-        } finally {
-            out.close();
-        }
-    }
-
-    /**
-     * Setting a file to executable differs in Android (and various versions of Android) than in generic Java
-     * so we use this method to abstract out the details.
-     * @param f The file to make executable
-     * @return True if it worked, false if it did not
-     */
-    abstract protected boolean setExecutable(File f);
-
-    protected void tryToClose(Closeable closeable) {
-        try {
-            if(closeable != null) closeable.close();
-        } catch(IOException e) {
-            LOG.warn(e.toString(), e);
-        }
-    }
-
-    private void listFiles(File f) {
-        if(f.isDirectory()) for(File child : f.listFiles()) listFiles(child);
-        else LOG.info(f.getAbsolutePath());
-    }
-
-    private byte[] read(File f) throws IOException {
-        byte[] b = new byte[(int) f.length()];
-        FileInputStream in = new FileInputStream(f);
-        try {
-            int offset = 0;
-            while(offset < b.length) {
-                int read = in.read(b, offset, b.length - offset);
-                if(read == -1) throw new EOFException();
-                offset += read;
-            }
-            return b;
-        } finally {
-            in.close();
-        }
-    }
-
-    // TODO: Right now we can only create a single hidden service but that is obviously broken, we will
-    // eventually want to support multiple hidden services.
-
-    /**
-     * Publishes a hidden service
-     * @param hiddenServicePort The port that the hidden service will accept connections on
-     * @param localPort The local port that the hidden service will relay connections to
-     * @return The hidden service's onion address in the form X.onion.
-     */
-    public String publishHiddenService(int hiddenServicePort, int localPort) throws IOException {
-        if(!running) throw new RuntimeException("Service is not running.");
-        if(!hostnameFile.exists()) {
-            LOG.info("Creating hidden service");
-            try {
-                if (hostnameFile.getParentFile().exists() == false &&
-                        hostnameFile.getParentFile().mkdirs() == false) {
-                    throw new RuntimeException("Could not create hostnameFile parent directory");
-                }
-
-                if (hostnameFile.createNewFile() == false) {
-                    throw new RuntimeException("Could not create hostnameFile");
-                }
-
-                // Watch for the hostname file being created/updated
-                WriteObserver hostNameFileObserver = onionProxyContext.generateWriteObserver(hostnameFile);
-                // Use the control connection to update the Tor config
-                List<String> config = Arrays.asList(
-                        "HiddenServiceDir " + torDirectory.getAbsolutePath(),
-                        "HiddenServicePort " + hiddenServicePort + " 127.0.0.1:" + localPort);
-                controlConnection.setConf(config);
-                controlConnection.saveConf();
-                // Wait for the hostname file to be created/updated
-                if(!hostNameFileObserver.poll(HOSTNAME_TIMEOUT, MILLISECONDS)) {
-                    listFiles(torDirectory);
-                    throw new RuntimeException("Wait for hidden service hostname file to be created expired.");
-                }
-                if(!running) throw new RuntimeException("Service was turned off");
-            } catch(IOException e) {
-                LOG.warn(e.toString(), e);
-            }
-        }
-        // Publish the hidden service's onion hostname in transport properties
-        String hostname = new String(read(hostnameFile), "UTF-8").trim();
-        LOG.info("Hidden service " + hostname);
-        return hostname;
-    }
-
-    protected void enableNetwork(boolean enable) throws IOException {
-        if(!running) {
-            throw new RuntimeException("Tor is not running!");
-        }
-        LOG.info("Enabling network: " + enable);
-        networkEnabled = enable;
-        controlConnection.setConf("DisableNetwork", enable ? "0" : "1");
-    }
-
-    public void stop() throws IOException {
-        running = false;
-        try {
-            LOG.info("Stopping Tor");
-            if(controlSocket == null)
-                controlSocket = new Socket("127.0.0.1", CONTROL_PORT);
-            if(controlConnection == null) {
-                controlConnection = new TorControlConnection(controlSocket);
-                controlConnection.authenticate(read(cookieFile));
-            }
-            controlConnection.setConf("DisableNetwork", "1");
-            controlConnection.shutdownTor("TERM");
-        } catch(IOException e) {
-            LOG.warn(e.toString(), e);
-        } finally {
-            if (controlSocket != null) {
-                controlSocket.close();
-            }
-        }
-    }
-
-    public boolean isRunning() {
-        return running && networkEnabled && bootstrapped;
-    }
-
-    // Event handler interfaces
-
-    public void circuitStatus(String status, String id, List<String> path, Map<String, String> info) {
-        String msg = "CircuitStatus: " + id + " " + status;
-        String purpose = info.get("PURPOSE");
-        if(purpose != null) msg += ", purpose: " + purpose;
-        String hsState = info.get("HS_STATE");
-        if(hsState != null) msg += ", state: " + hsState;
-        String rendQuery = info.get("REND_QUERY");
-        if(rendQuery != null) msg += ", service: " + rendQuery;
-        if(!path.isEmpty()) msg += ", path: " + shortenPath(path);
-        LOG.info(msg);
-    }
-
-    public void streamStatus(String status, String id, String target) {
-        LOG.info("streamStatus: status: " + status + ", id: " + id + ", target: " + target);
-    }
-
-    public void orConnStatus(String status, String orName) {
-        LOG.info("OR connection: status: " + status + ", orName: " + orName);
-    }
-
-    public void bandwidthUsed(long read, long written) {
-        LOG.info("bandwidthUsed: read: " + read + ", written: " + written);
-    }
-
-    public void newDescriptors(List<String> orList) {
-        Iterator<String> iterator = orList.iterator();
-        StringBuilder stringBuilder = new StringBuilder();
-        while(iterator.hasNext()) {
-            stringBuilder.append(iterator.next());
-        }
-        LOG.info("newDescriptors: " + stringBuilder.toString());
-    }
-
-    public void message(String severity, String msg) {
-        LOG.info("message: severity: " + severity + ", msg: " + msg);
-        if(severity.equals("NOTICE") && msg.startsWith("Bootstrapped 100%")) {
-            bootstrapped = true;
-        }
-    }
-
-    @Override
-    public void unrecognized(String type, String msg) {
-        LOG.info("unrecognized: type: " + type + ", msg: " + msg);
-    }
-
-    private String shortenPath(List<String> path) {
-        StringBuilder s = new StringBuilder();
-        for(String id : path) {
-            if(s.length() > 0) s.append(',');
-            s.append(id.substring(1, 7));
-        }
-        return s.toString();
-    }
-
-    public static void recursiveFileDelete(File fileOrDirectory) {
-        if (fileOrDirectory.isDirectory()) {
-            for (File child : fileOrDirectory.listFiles()) {
-                recursiveFileDelete(child);
-            }
-        }
-
-        fileOrDirectory.delete();
     }
 }

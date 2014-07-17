@@ -80,63 +80,51 @@ import java.util.concurrent.TimeUnit;
 public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
     private static final int CONNECT_TIMEOUT_MILLISECONDS = 60000;
     private static final int READ_TIMEOUT_MILLISECONDS = 60000;
+    private static final int TOTAL_MINUTES_FOR_TEST_TO_RUN = 3;
     private static final Logger LOG = LoggerFactory.getLogger(TorOnionProxySmokeTest.class);
+    private OnionProxyManager onionProxyManager;
 
     public void tearDown() throws IOException {
-        OnionProxyManager onionProxyManager = getOnionProxyManager();
         onionProxyManager.stop();
     }
 
     public void testCleanInstallStopAndReRun() throws IOException, InterruptedException {
         deleteTorWorkingDirectory();
-        OnionProxyManager onionProxyManager = OpenHiddenServiceAndTest();
+        onionProxyManager = OpenHiddenServiceAndTest();
         onionProxyManager.stop();
-        blockOrFail(onionProxyManager, false);
+        // There is a small race condition where we shut things down and they aren't quite cleaned up before we
+        // try to get them going again.
+        Thread.sleep(1000,0);
+        // We nuke everything so the hidden service is removed and a new address is used. Right now there is a very
+        // high probability that if one tries to register the same hidden service two times in a row that the system
+        // will hand out an old descriptor and make a mess of things.
+        deleteTorWorkingDirectory();
         // After stopping we run again to make sure that nothing stops an app from stopping and starting again
-        OpenHiddenServiceAndTest();
+        onionProxyManager = OpenHiddenServiceAndTest();
     }
 
     private OnionProxyManager OpenHiddenServiceAndTest() throws IOException, InterruptedException {
         OnionProxyManager onionProxyManager = getOnionProxyManager();
-        assertTrue(onionProxyManager.start());
-        onionProxyManager.enableNetwork(true);
+        assertTrue(onionProxyManager.startWithRepeat(30, 5));
 
         int localPort = 9343;
         int hiddenServicePort = 9344;
         String onionAddress = onionProxyManager.publishHiddenService(hiddenServicePort, localPort);
+        LOG.info("onionAddress for test hidden service is: " + onionAddress);
 
         byte[] testBytes = new byte[] { 0x01, 0x02, 0x03, 0x05};
 
         CountDownLatch countDownLatch = receiveExpectedBytes(testBytes, localPort);
 
-        blockOrFail(onionProxyManager, true);
-
-        Socket clientSocket = getClientSocket(onionAddress, hiddenServicePort, onionProxyManager.getSocksPort());
+        Socket clientSocket = getClientSocket(onionAddress, hiddenServicePort, onionProxyManager.getIPv4LocalHostSocksPort());
 
         DataOutputStream clientOutputStream = new DataOutputStream(clientSocket.getOutputStream());
         clientOutputStream.write(testBytes);
         clientOutputStream.flush();
-        assertTrue(countDownLatch.await(2, TimeUnit.MINUTES));
+        assertTrue(countDownLatch.await(TOTAL_MINUTES_FOR_TEST_TO_RUN, TimeUnit.MINUTES));
 
         return onionProxyManager;
     }
-
-    /**
-     * Dorky and yes we could use a listener but I'm trying to decide how we want to handle this.
-     * @param onionProxyManager
-     * @param isRunning
-     */
-    private void blockOrFail(OnionProxyManager onionProxyManager, boolean isRunning) throws InterruptedException {
-        long timeToExit = Calendar.getInstance().getTimeInMillis() + 60*1000;
-        while(Calendar.getInstance().getTimeInMillis() < timeToExit  && onionProxyManager.isRunning() != isRunning) {
-            Thread.sleep(1000,0);
-        }
-
-        if (onionProxyManager.isRunning() != isRunning) {
-            throw new RuntimeException("After wait time isRunning isn't " + isRunning);
-        }
-    }
-
 
     /**
      * It can take awhile for a new hidden service to get registered
@@ -147,7 +135,7 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
      */
     private Socket getClientSocket(String onionAddress, int hiddenServicePort, int socksPort)
             throws InterruptedException {
-        long timeToExit = Calendar.getInstance().getTimeInMillis() + 3*60*1000;
+        long timeToExit = Calendar.getInstance().getTimeInMillis() + TOTAL_MINUTES_FOR_TEST_TO_RUN*60*1000;
         Socket clientSocket = null;
         while (Calendar.getInstance().getTimeInMillis() < timeToExit && clientSocket == null) {
             try {
@@ -180,6 +168,8 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
                         if (nextByte != receivedByte) {
                             LOG.error("Received " + receivedByte + ", but expected " + nextByte);
                             return;
+                        } else {
+                            LOG.info("Received " + receivedByte);
                         }
                     }
                     countDownLatch.countDown();
@@ -193,6 +183,7 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
                     try {
                         if (receivedSocket != null) {
                             receivedSocket.close();
+                            LOG.info("Close of receiveExpectedBytes worked");
                         }
                         serverSocket.close();
                     } catch (IOException e) {
@@ -205,21 +196,11 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         return countDownLatch;
     }
 
-    private void closeClosable(Closeable closeable) {
-        try {
-            if (closeable != null) {
-                closeable.close();
-            }
-        } catch (IOException e) {
-            LOG.error("close failed", e);
-        }
-    }
-
     private void deleteTorWorkingDirectory() {
         OnionProxyContext onionProxyContext = getOnionProxyContext();
         File torWorkingDirectory =
                 new File(onionProxyContext.getWorkingDirectory(), OnionProxyManager.torWorkingDirectoryName);
-        OnionProxyManager.recursiveFileDelete(torWorkingDirectory);
+        FileUtilities.recursiveFileDelete(torWorkingDirectory);
         if (torWorkingDirectory.mkdirs() == false) {
             throw new RuntimeException("couldn't create Tor Working Directory after deleting it.");
         }
