@@ -13,6 +13,7 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.java.toronionproxy;
 
+import com.msopentech.thali.toronionproxy.FileUtilities;
 import com.msopentech.thali.toronionproxy.OnionProxyContext;
 import com.msopentech.thali.toronionproxy.OsData;
 import com.msopentech.thali.toronionproxy.WriteObserver;
@@ -22,35 +23,70 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public class JavaOnionProxyContext implements OnionProxyContext {
-    private File workingDirectory;
+    private final static String geoIpName = "geoip";
+    private final static String torrcName = "torrc";
+    private final File workingDirectory;
+    private final File geoIpFile;
+    private final File torrcFile;
+    private final File torExecutableFile;
+    private final File cookieFile;
+    private final File hostnameFile;
 
     public JavaOnionProxyContext(String workingSubDirectoryName) {
         workingDirectory = new File("OnionProxyJavaTests", workingSubDirectoryName);
+        geoIpFile = new File(getWorkingDirectory(), geoIpName);
+        torrcFile = new File(getWorkingDirectory(), torrcName);
+        torExecutableFile = new File(getWorkingDirectory(), getTorExecutableFileName());
+        cookieFile = new File(getWorkingDirectory(), ".tor/control_auth_cookie");
+        hostnameFile = new File(getWorkingDirectory(), "/hiddenservice/hostname");
+    }
+
+    @Override
+    public void installFiles() throws IOException {
         if (workingDirectory.exists() == false && workingDirectory.mkdirs() == false) {
             throw new RuntimeException("Could not create root directory!");
         }
-    }
+        FileUtilities.cleanInstallOneFile(getClass().getResourceAsStream("/" + geoIpName), geoIpFile);
+        FileUtilities.cleanInstallOneFile(getClass().getResourceAsStream("/" + torrcName), torrcFile);
+        String pathToTorExecutable = getPathToTorExecutable();
 
-    @Override
-    public InputStream getTorrc() throws IOException {
-        return getClass().getResourceAsStream("/torrc");
-    }
-
-    @Override
-    public InputStream getGeoIpZip() throws IOException {
-        return getClass().getResourceAsStream("/geoip");
-    }
-
-    @Override
-    public InputStream getTorExecutableZip() throws IOException {
-        String path = "/native/";
-        String osName = System.getProperty("os.name");
-        if (osName.contains("Windows")) {
-            path += "windows/x86/"; // We currently only support the x86 build but that should work everywhere
-        } else {
-            throw new RuntimeException("We don't support Tor on this OS yet");
+        switch(OsData.getOsType()) {
+            case Windows:
+                FileUtilities.cleanInstallOneFile(
+                        getClass().getResourceAsStream(pathToTorExecutable + getTorExecutableFileName()),
+                        torExecutableFile);
+                break;
+            case Mac:
+                FileUtilities.extractContentFromZip(getWorkingDirectory(), getClass().getResourceAsStream(pathToTorExecutable + "tor.zip"));
+                break;
+            default:
+                throw new RuntimeException("We don't support Tor on this OS yet");
         }
-        return getClass().getResourceAsStream(path + "tor");
+    }
+
+    @Override
+    public File getGeoIpFile() {
+        return geoIpFile;
+    }
+
+    @Override
+    public File getTorrcFile() {
+        return torrcFile;
+    }
+
+    @Override
+    public File getCookieFile() {
+        return cookieFile;
+    }
+
+    @Override
+    public File getHostNameFile() {
+        return hostnameFile;
+    }
+
+    @Override
+    public File getTorExecutableFile() {
+        return torExecutableFile;
     }
 
     @Override
@@ -72,5 +108,33 @@ public class JavaOnionProxyContext implements OnionProxyContext {
         // This is a horrible hack. It seems like more JVMs will return the process's PID this way, but not guarantees.
         String processName = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
         return processName.split("@")[0];
+    }
+
+    private String getTorExecutableFileName() {
+        switch(OsData.getOsType()) {
+            case Windows:
+                return "tor.exe";
+            case Mac:
+                return "tor.real";
+            default:
+                throw new RuntimeException("We don't support Tor on this OS yet");
+        }
+    }
+
+    /**
+     * Returns the path in the resources directory to the right executable for this platform, the returned path will
+     * always end in a slash.
+     * @return A slash terminated path to the proper executable for this platform.
+     */
+    private String getPathToTorExecutable() {
+        String path = "/native/";
+        switch (OsData.getOsType()) {
+            case Windows:
+                return path + "windows/x86/"; // We currently only support the x86 build but that should work everywhere
+            case Mac:
+                return path +  "osx/x64/"; // I don't think there even is a x32 build of Tor for Mac, but could be wrong.
+            default:
+                throw new RuntimeException("We don't support Tor on this OS yet");
+        }
     }
 }

@@ -14,42 +14,75 @@ See the Apache 2 License for the specific language governing permissions and lim
 package com.msopentech.thali.android.toronionproxy;
 
 import android.content.Context;
+import com.msopentech.thali.toronionproxy.FileUtilities;
 import com.msopentech.thali.toronionproxy.OnionProxyContext;
 import com.msopentech.thali.toronionproxy.WriteObserver;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 
 import static android.content.Context.MODE_PRIVATE;
 
 public class AndroidOnionProxyContext implements OnionProxyContext {
     private final Context context;
-    private final String workingSubDirectoryName;
+    private final static String geoIpName = "geoip";
+    private final static String torrcName = "torrc";
+    private final static String torExecutableName = "tor";
+    private final File workingDirectory;
+    private final File geoIpFile;
+    private final File torrcFile;
+    private final File torExecutableFile;
+    private final File cookieFile;
+    private final File hostnameFile;
 
     public AndroidOnionProxyContext(Context context, String workingSubDirectoryName) {
         this.context = context;
-        this.workingSubDirectoryName = workingSubDirectoryName;
+        workingDirectory = context.getDir(workingSubDirectoryName, MODE_PRIVATE);
+        geoIpFile = new File(getWorkingDirectory(), geoIpName);
+        torrcFile = new File(getWorkingDirectory(), torrcName);
+        torExecutableFile = new File(getWorkingDirectory(), torExecutableName);
+        cookieFile = new File(getWorkingDirectory(), ".tor/control_auth_cookie");
+        hostnameFile = new File(getWorkingDirectory(), "/hiddenservice/hostname");
     }
 
     @Override
-    public InputStream getTorrc() throws IOException {
-        return context.getResources().getAssets().open("torrc");
+    public void installFiles() throws IOException {
+        if (workingDirectory.exists() == false && workingDirectory.mkdirs() == false) {
+            throw new RuntimeException("Could not create Tor working directory.");
+        }
+        FileUtilities.cleanInstallOneFile(context.getResources().getAssets().open(geoIpName), geoIpFile);
+        FileUtilities.cleanInstallOneFile(context.getResources().getAssets().open(torrcName), torrcFile);
+        FileUtilities.cleanInstallOneFile(context.getResources().getAssets().open(torExecutableName), torExecutableFile);
     }
 
     @Override
-    public InputStream getGeoIpZip() throws IOException {
-        return context.getResources().getAssets().open("geoip");
+    public File getGeoIpFile() {
+        return geoIpFile;
     }
 
     @Override
-    public InputStream getTorExecutableZip() throws IOException {
-        return context.getResources().getAssets().open("tor");
+    public File getTorrcFile() {
+        return torrcFile;
+    }
+
+    @Override
+    public File getCookieFile() {
+        return cookieFile;
+    }
+
+    @Override
+    public File getHostNameFile() {
+        return hostnameFile;
+    }
+
+    @Override
+    public File getTorExecutableFile() {
+        return torExecutableFile;
     }
 
     @Override
     public File getWorkingDirectory() {
-        return context.getDir(workingSubDirectoryName, MODE_PRIVATE);
+        return workingDirectory;
     }
 
     @Override

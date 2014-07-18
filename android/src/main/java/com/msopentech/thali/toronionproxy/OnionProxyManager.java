@@ -40,7 +40,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.CountDownLatch;
-import java.util.zip.ZipInputStream;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -48,8 +47,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * This class began life is TorPlugin from the Briar Project
  */
 public abstract class OnionProxyManager {
-    public static final String torWorkingDirectoryName = "tor";
-
     private static final String[] EVENTS = {
             "CIRC", "ORCONN", "NOTICE", "WARN", "ERR"
     };
@@ -60,9 +57,6 @@ public abstract class OnionProxyManager {
     private static final Logger LOG = LoggerFactory.getLogger(OnionProxyManager.class);
 
     protected final OnionProxyContext onionProxyContext;
-    protected final File torDirectory;
-    private final File geoIpFile, configFile;
-    private final File cookieFile, hostnameFile;
 
     private volatile Socket controlSocket = null;
     // If controlConnection is not null then this means that a connection exists and the Tor OP will die when
@@ -72,15 +66,6 @@ public abstract class OnionProxyManager {
 
     public OnionProxyManager(OnionProxyContext onionProxyContext) {
         this.onionProxyContext = onionProxyContext;
-        torDirectory = new File(onionProxyContext.getWorkingDirectory(), torWorkingDirectoryName);
-
-        if (torDirectory.exists() == false && torDirectory.mkdirs() == false) {
-            throw new RuntimeException("Could not create tor working directory");
-        }
-        geoIpFile = new File(torDirectory, "geoip");
-        configFile = new File(torDirectory, "torrc");
-        cookieFile = new File(torDirectory, ".tor/control_auth_cookie");
-        hostnameFile = new File(torDirectory, "/hiddenservice/hostname");
     }
 
     /**
@@ -171,6 +156,7 @@ public abstract class OnionProxyManager {
         }
 
         LOG.info("Creating hidden service");
+        File hostnameFile = onionProxyContext.getHostNameFile();
         try {
             if (hostnameFile.getParentFile().exists() == false &&
                     hostnameFile.getParentFile().mkdirs() == false) {
@@ -317,16 +303,11 @@ public abstract class OnionProxyManager {
         // as the result would be a mess of screwed up files and connections.
         LOG.info("Tor is not running");
 
-        // Install the binary, possibly overwriting an older version
-        File torExecutableFile = installBinary();
-
-        // Install the GeoIP database and config file
-        if(!installConfig()) {
-            LOG.info("Could not install Tor config");
-            return false;
-        }
+        installAndConfigureFiles();
+        File torExecutableFile = onionProxyContext.getTorExecutableFile();
 
         LOG.info("Starting Tor");
+        File cookieFile = onionProxyContext.getCookieFile();
         if (cookieFile.getParentFile().exists() == false &&
                 cookieFile.getParentFile().mkdirs() == false) {
             throw new RuntimeException("Could not create cookieFile parent directory");
@@ -339,18 +320,19 @@ public abstract class OnionProxyManager {
             throw new RuntimeException("Could not create cookieFile");
         }
 
+        File workingDirectory = onionProxyContext.getWorkingDirectory();
         // Watch for the auth cookie file being created/updated
         WriteObserver cookieObserver = onionProxyContext.generateWriteObserver(cookieFile);
         // Start a new Tor process
         String torPath = torExecutableFile.getAbsolutePath();
-        String configPath = configFile.getAbsolutePath();
+        String configPath = onionProxyContext.getTorrcFile().getAbsolutePath();
         String pid = onionProxyContext.getProcessId();
         String[] cmd = { torPath, "-f", configPath, OWNER, pid };
-        String[] env = { "HOME=" + torDirectory.getAbsolutePath() };
+        String[] env = { "HOME=" + workingDirectory.getAbsolutePath() };
         Process torProcess = null;
         boolean startWorked = false;
         try {
-            torProcess = Runtime.getRuntime().exec(cmd, env, torDirectory);
+            torProcess = Runtime.getRuntime().exec(cmd, env, workingDirectory);
             CountDownLatch controlPortCountDownLatch = new CountDownLatch(1);
             eatStream(torProcess.getInputStream(), false, controlPortCountDownLatch);
             eatStream(torProcess.getErrorStream(), true, null);
@@ -373,7 +355,7 @@ public abstract class OnionProxyManager {
             // Wait for the auth cookie file to be created/updated
             if(!cookieObserver.poll(COOKIE_TIMEOUT, MILLISECONDS)) {
                 LOG.warn("Auth cookie not created");
-                FileUtilities.listFiles(torDirectory);
+                FileUtilities.listFiles(workingDirectory);
                 return false;
             }
 
@@ -445,33 +427,29 @@ public abstract class OnionProxyManager {
         }.start();
     }
 
-    /**
-     * Installs the Tor Onion Proxy binary
-     * @return binary to execute from the command line
-     */
-    protected File installBinary() {
-        ZipInputStream in = null;
-        OutputStream out = null;
-        try {
-            // Unzip the Tor binary to the filesystem
-            in = new ZipInputStream(onionProxyContext.getTorExecutableZip());
-            File executableFile = new File(torDirectory, in.getNextEntry().getName());
-            if (executableFile.exists() && executableFile.delete() == false) {
-                throw new RuntimeException("Could not clean up Tor binary");
-            }
-            out = new FileOutputStream(executableFile);
-            FileUtilities.copy(in, out);
+    protected void installAndConfigureFiles() throws IOException {
+        onionProxyContext.installFiles();
 
-            // Make the Tor binary executable
-            if(!setExecutable(executableFile)) {
-                throw new RuntimeException("Could not make Tor executable");
-            }
-            return executableFile;
-        } catch(IOException e) {
-            throw new RuntimeException(e);
+        if (!setExecutable(onionProxyContext.getTorExecutableFile())) {
+            throw new RuntimeException("could not make Tor executable.");
+        }
+
+        // We need to edit the config file to specify exactly where the cookie/geoip files should be stored, on
+        // Android this is always a fixed location relative to the configFiles which is why this extra step
+        // wasn't needed in Briar's Android code. But in Windows it ends up in the user's AppData/Roaming. Rather
+        // than track it down we just tell Tor where to put it.
+        PrintWriter printWriter = null;
+        try {
+            printWriter = new PrintWriter(new BufferedWriter(new FileWriter(onionProxyContext.getTorrcFile(), true)));
+            printWriter.println("CookieAuthFile " + onionProxyContext.getCookieFile().getAbsolutePath());
+            // For some reason the GeoIP's location can only be given as a file name, not a path and it has
+            // to be in the data directory so we need to set both
+            printWriter.println("DataDirectory " + onionProxyContext.getWorkingDirectory().getAbsolutePath());
+            printWriter.println("GeoIPFile " + onionProxyContext.getGeoIpFile().getName());
         } finally {
-            FileUtilities.tryToClose(in);
-            FileUtilities.tryToClose(out);
+            if (printWriter != null) {
+                printWriter.close();
+            }
         }
     }
 
@@ -481,38 +459,4 @@ public abstract class OnionProxyManager {
      * @return True if it worked, otherwise false.
      */
     protected abstract boolean setExecutable(File f);
-
-    protected boolean installConfig() {
-        InputStream in = null;
-        OutputStream out = null;
-        try {
-            FileUtilities.cleanInstallOneFile(onionProxyContext.getGeoIpZip(), geoIpFile);
-
-            FileUtilities.cleanInstallOneFile(onionProxyContext.getTorrc(), configFile);
-            // We need to edit the config file to specify exactly where the cookie/geoip files should be stored, on
-            // Android this is always a fixed location relative to the configFiles which is why this extra step
-            // wasn't needed in Briar's Android code. But in Windows it ends up in the user's AppData/Roaming. Rather
-            // than track it down we just tell Tor where to put it.
-            PrintWriter printWriter = null;
-            try {
-                printWriter = new PrintWriter(new BufferedWriter(new FileWriter(configFile, true)));
-                printWriter.println("CookieAuthFile " + cookieFile.getAbsolutePath());
-                // For some reason the GeoIP's location can only be given as a file name, not a path and it has
-                // to be in the data directory so we need to set both
-                printWriter.println("DataDirectory " + geoIpFile.getParentFile().getAbsolutePath());
-                printWriter.println("GeoIPFile " + geoIpFile.getName());
-            } finally {
-                if (printWriter != null) {
-                    printWriter.close();
-                }
-            }
-            return true;
-        } catch(IOException e) {
-            LOG.warn(e.toString(), e);
-            return false;
-        } finally {
-            FileUtilities.tryToClose(in);
-            FileUtilities.tryToClose(out);
-        }
-    }
 }

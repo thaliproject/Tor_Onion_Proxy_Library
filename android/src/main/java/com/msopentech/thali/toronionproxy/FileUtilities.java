@@ -71,6 +71,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class FileUtilities {
@@ -139,19 +140,6 @@ public class FileUtilities {
     }
 
     /**
-     * Reads the input stream of a zip file, unzips it and returns
-     * the output stream for the first file inside the zip file.
-     * @param in Input stream of zipped file
-     * @return Output stream of first file in zip file
-     * @throws IOException
-     */
-    public static ZipInputStream getZipInputStream(InputStream in) throws IOException {
-        ZipInputStream zin = new ZipInputStream(in);
-        if (zin.getNextEntry() == null) throw new IOException();
-        return zin;
-    }
-
-    /**
      * Reads the input stream, deletes fileToWriteTo if it exists
      * and over writes it with the stream.
      * @param readFrom
@@ -174,5 +162,49 @@ public class FileUtilities {
         }
 
         fileOrDirectory.delete();
+    }
+
+    /**
+     * This has to exist somewhere! Why isn't it a part of the standard Java library?
+     * @param destinationDirectory Directory files are to be extracted to
+     * @param zipFileInputStream Stream to unzip
+     */
+    public static void extractContentFromZip(File destinationDirectory, InputStream zipFileInputStream) throws IOException {
+        ZipInputStream zipInputStream = null;
+        try {
+            zipInputStream = new ZipInputStream(zipFileInputStream);
+            ZipEntry zipEntry;
+            while ((zipEntry = zipInputStream.getNextEntry()) != null) {
+                File file = new File(destinationDirectory, zipEntry.getName());
+                if (zipEntry.isDirectory()) {
+                    if (file.mkdirs() == false) {
+                        throw new RuntimeException("Could not create directory " + file);
+                    }
+                } else {
+                    if (file.exists()) {
+                        throw new RuntimeException("You aren't supposed to have the same file twice in a zip - " + file);
+                    }
+
+                    if (file.createNewFile() == false) {
+                        throw new RuntimeException("Could not create file " + file);
+                    }
+
+                    OutputStream fileOutputStream = null;
+                    try {
+                        fileOutputStream = new FileOutputStream(file);
+
+                        copyDontCloseInput(zipInputStream, fileOutputStream);
+                    } finally {
+                        if (fileOutputStream != null) {
+                            fileOutputStream.close();
+                        }
+                    }
+                }
+            }
+        } finally {
+            if (zipFileInputStream != null) {
+                zipFileInputStream.close();
+            }
+        }
     }
 }

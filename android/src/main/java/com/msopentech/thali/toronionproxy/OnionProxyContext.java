@@ -16,14 +16,18 @@ package com.msopentech.thali.toronionproxy;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 
 /**
  * This class encapsulates data that is handled differently in Java and Android
  */
 public interface OnionProxyContext {
-    InputStream getTorrc() throws IOException;
-    InputStream getGeoIpZip() throws IOException;
-    InputStream getTorExecutableZip() throws IOException;
+    void installFiles() throws IOException;
+    File getGeoIpFile();
+    File getTorrcFile();
+    File getCookieFile();
+    File getHostNameFile();
+    File getTorExecutableFile();
     File getWorkingDirectory(); // Equivalent of Android Context's getDir
     WriteObserver generateWriteObserver(File file);
     String getProcessId();
