@@ -82,48 +82,88 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
     private static final int READ_TIMEOUT_MILLISECONDS = 60000;
     private static final int TOTAL_MINUTES_FOR_TEST_TO_RUN = 3;
     private static final Logger LOG = LoggerFactory.getLogger(TorOnionProxySmokeTest.class);
-    private OnionProxyManager onionProxyManager;
 
-    public void tearDown() throws IOException {
-        onionProxyManager.stop();
-    }
 
     public void testCleanInstallStopAndReRun() throws IOException, InterruptedException {
-        deleteTorWorkingDirectory();
-        onionProxyManager = OpenHiddenServiceAndTest();
-        onionProxyManager.stop();
-        // There is a small race condition where we shut things down and they aren't quite cleaned up before we
-        // try to get them going again.
-        Thread.sleep(1000,0);
-        // We nuke everything so the hidden service is removed and a new address is used. Right now there is a very
-        // high probability that if one tries to register the same hidden service two times in a row that the system
-        // will hand out an old descriptor and make a mess of things.
-        deleteTorWorkingDirectory();
-        // After stopping we run again to make sure that nothing stops an app from stopping and starting again
-        onionProxyManager = OpenHiddenServiceAndTest();
+        OnionProxyManager onionProxyManager = null;
+        try {
+            //deleteTorWorkingDirectory();
+            onionProxyManager = OpenHiddenServiceAndTest();
+            onionProxyManager.stop();
+            // There is a small race condition where we shut things down and they aren't quite cleaned up before we
+            // try to get them going again.
+            Thread.sleep(1000,0);
+            // We nuke everything so the hidden service is removed and a new address is used. Right now there is a very
+            // high probability that if one tries to register the same hidden service two times in a row that the system
+            // will hand out an old descriptor and make a mess of things.
+            //deleteTorWorkingDirectory();
+            // After stopping we run again to make sure that nothing stops an app from stopping and starting again
+            onionProxyManager = OpenHiddenServiceAndTest();
+        } finally {
+            if (onionProxyManager != null) {
+                onionProxyManager.stop();
+            }
+        }
+    }
+
+    public void testHiddenServiceRecycleTime() throws IOException, InterruptedException {
+        String hiddenServiceManagerDirectoryName = "hiddenservicemanager";
+        String clientManagerDirectoryName = "clientmanager";
+        OnionProxyManager hiddenServiceManager = null, clientManager = null;
+        try {
+            deleteTorWorkingDirectory(hiddenServiceManagerDirectoryName);
+            hiddenServiceManager = getOnionProxyManager(hiddenServiceManagerDirectoryName);
+            assertTrue(hiddenServiceManager.startWithRepeat(30, 5));
+
+            deleteTorWorkingDirectory(clientManagerDirectoryName);
+            clientManager = getOnionProxyManager(clientManagerDirectoryName);
+            assertTrue(clientManager.startWithRepeat(30, 5));
+
+            runHiddenServiceTest(hiddenServiceManager, clientManager);
+
+            // Now take down the hidden service manager and bring it back up with a new descriptor but the
+            // same address
+            hiddenServiceManager.stop();
+            hiddenServiceManager.startWithRepeat(30, 5);
+            runHiddenServiceTest(hiddenServiceManager, clientManager);
+        } finally {
+            if (hiddenServiceManager != null) {
+                hiddenServiceManager.stop();
+            }
+            if (clientManager != null) {
+                clientManager.stop();
+            }
+        }
     }
 
     private OnionProxyManager OpenHiddenServiceAndTest() throws IOException, InterruptedException {
-        OnionProxyManager onionProxyManager = getOnionProxyManager();
+        OnionProxyManager onionProxyManager = getOnionProxyManager("tor");
         assertTrue(onionProxyManager.startWithRepeat(30, 5));
 
+        runHiddenServiceTest(onionProxyManager, onionProxyManager);
+
+        return onionProxyManager;
+    }
+
+    private void runHiddenServiceTest(OnionProxyManager hiddenServiceManager, OnionProxyManager clientManager)
+            throws IOException, InterruptedException {
         int localPort = 9343;
         int hiddenServicePort = 9344;
-        String onionAddress = onionProxyManager.publishHiddenService(hiddenServicePort, localPort);
+        String onionAddress = hiddenServiceManager.publishHiddenService(hiddenServicePort, localPort);
         LOG.info("onionAddress for test hidden service is: " + onionAddress);
 
         byte[] testBytes = new byte[] { 0x01, 0x02, 0x03, 0x05};
 
         CountDownLatch countDownLatch = receiveExpectedBytes(testBytes, localPort);
 
-        Socket clientSocket = getClientSocket(onionAddress, hiddenServicePort, onionProxyManager.getIPv4LocalHostSocksPort());
+        Socket clientSocket =
+                getClientSocket(onionAddress, hiddenServicePort, clientManager.getIPv4LocalHostSocksPort(),
+                        hiddenServiceManager == clientManager ? null : clientManager);
 
         DataOutputStream clientOutputStream = new DataOutputStream(clientSocket.getOutputStream());
         clientOutputStream.write(testBytes);
         clientOutputStream.flush();
         assertTrue(countDownLatch.await(TOTAL_MINUTES_FOR_TEST_TO_RUN, TimeUnit.MINUTES));
-
-        return onionProxyManager;
     }
 
     /**
@@ -133,8 +173,8 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
      * @param socksPort
      * @return
      */
-    private Socket getClientSocket(String onionAddress, int hiddenServicePort, int socksPort)
-            throws InterruptedException {
+    private Socket getClientSocket(String onionAddress, int hiddenServicePort, int socksPort, OnionProxyManager clientManager)
+            throws InterruptedException, IOException {
         long timeToExit = Calendar.getInstance().getTimeInMillis() + TOTAL_MINUTES_FOR_TEST_TO_RUN*60*1000;
         Socket clientSocket = null;
         while (Calendar.getInstance().getTimeInMillis() < timeToExit && clientSocket == null) {
@@ -142,7 +182,17 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
                 clientSocket = socks4aSocketConnection(onionAddress, hiddenServicePort, "127.0.0.1", socksPort);
             } catch (IOException e) {
                 LOG.error("attempt to set clientSocket failed, will retry", e);
-                Thread.sleep(5000, 0);
+                // This is an experiment to see if we can get the old cached hidden service descriptor removed if
+                // we restart the client.
+//                if (clientManager == null) {
+                    Thread.sleep(5000, 0);
+//                } else {
+//                    clientManager.stop();
+//                    // Give time for the process to stop and release file locks
+//                    Thread.sleep(1000, 0);
+//                    assertTrue(clientManager.startWithRepeat(30, 5));
+//                    socksPort = clientManager.getIPv4LocalHostSocksPort();
+//                }
             }
         }
 
@@ -162,6 +212,7 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
                 Socket receivedSocket = null;
                 try {
                     receivedSocket = serverSocket.accept();
+                    LOG.info("Received incoming connection");
                     DataInputStream dataInputStream = new DataInputStream(receivedSocket.getInputStream());
                     for(byte nextByte : expectedBytes) {
                         byte receivedByte = dataInputStream.readByte();
@@ -186,6 +237,7 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
                             LOG.info("Close of receiveExpectedBytes worked");
                         }
                         serverSocket.close();
+                        LOG.info("Server socket is closed");
                     } catch (IOException e) {
                         LOG.error("Close failed!", e);
                     }
@@ -196,8 +248,8 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         return countDownLatch;
     }
 
-    private void deleteTorWorkingDirectory() {
-        OnionProxyContext onionProxyContext = getOnionProxyContext();
+    private void deleteTorWorkingDirectory(String workingSubDirectoryName) {
+        OnionProxyContext onionProxyContext = getOnionProxyContext(workingSubDirectoryName);
         File torWorkingDirectory =
                 new File(onionProxyContext.getWorkingDirectory(), OnionProxyManager.torWorkingDirectoryName);
         FileUtilities.recursiveFileDelete(torWorkingDirectory);

@@ -20,11 +20,11 @@ import com.msopentech.thali.toronionproxy.OnionProxyContext;
 import com.msopentech.thali.toronionproxy.OnionProxyManager;
 
 public class TorOnionProxyTestCase extends AndroidTestCase {
-    public OnionProxyManager getOnionProxyManager() {
-        return new AndroidOnionProxyManager(getContext());
+    public OnionProxyManager getOnionProxyManager(String workingSubDirectoryName) {
+        return new AndroidOnionProxyManager(getContext(), workingSubDirectoryName);
     }
 
-    public OnionProxyContext getOnionProxyContext() {
-        return new AndroidOnionProxyContext(getContext());
+    public OnionProxyContext getOnionProxyContext(String workingSubDirectoryName) {
+        return new AndroidOnionProxyContext(getContext(), workingSubDirectoryName);
     }
 }

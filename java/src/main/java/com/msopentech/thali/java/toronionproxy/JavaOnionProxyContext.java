@@ -24,8 +24,8 @@ import java.io.InputStream;
 public class JavaOnionProxyContext implements OnionProxyContext {
     private File workingDirectory;
 
-    public JavaOnionProxyContext() {
-        workingDirectory = new File("OnionProxyJavaTests");
+    public JavaOnionProxyContext(String workingSubDirectoryName) {
+        workingDirectory = new File("OnionProxyJavaTests", workingSubDirectoryName);
         if (workingDirectory.exists() == false && workingDirectory.mkdirs() == false) {
             throw new RuntimeException("Could not create root directory!");
         }

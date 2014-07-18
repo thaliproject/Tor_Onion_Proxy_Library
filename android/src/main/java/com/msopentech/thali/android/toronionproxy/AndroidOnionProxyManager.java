@@ -57,8 +57,8 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
     private volatile BroadcastReceiver networkStateReceiver;
     private final Context context;
 
-    public AndroidOnionProxyManager(Context context) {
-        super(new AndroidOnionProxyContext(context));
+    public AndroidOnionProxyManager(Context context, String workingSubDirectoryName) {
+        super(new AndroidOnionProxyContext(context, workingSubDirectoryName));
         this.context = context;
 
         // Register to receive network status events

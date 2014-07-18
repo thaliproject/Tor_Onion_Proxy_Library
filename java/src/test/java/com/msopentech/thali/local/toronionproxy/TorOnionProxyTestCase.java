@@ -20,11 +20,11 @@ import com.msopentech.thali.toronionproxy.OnionProxyManager;
 import junit.framework.TestCase;
 
 public class TorOnionProxyTestCase extends TestCase {
-    public OnionProxyManager getOnionProxyManager() {
-        return new JavaOnionProxyManager(new JavaOnionProxyContext());
+    public OnionProxyManager getOnionProxyManager(String workingSubDirectoryName) {
+        return new JavaOnionProxyManager(new JavaOnionProxyContext(workingSubDirectoryName));
     }
 
-    public OnionProxyContext getOnionProxyContext() {
-        return new JavaOnionProxyContext();
+    public OnionProxyContext getOnionProxyContext(String workingSubDirectoryName) {
+        return new JavaOnionProxyContext(workingSubDirectoryName);
     }
 }

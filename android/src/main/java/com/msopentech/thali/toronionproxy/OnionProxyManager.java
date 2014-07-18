@@ -99,6 +99,11 @@ public abstract class OnionProxyManager {
             throw new IllegalArgumentException("secondsBeforeTimeOut >= 0 & numberOfRetries > 0");
         }
 
+        // This is sleezy but we have cases where an old instance of the Tor OP needs an extra second to
+        // clean itself up. Without that time we can't do things like delete its binary (which we currently
+        // do by default, something we hope to fix with https://github.com/thaliproject/Tor_Onion_Proxy_Library/issues/13
+        Thread.sleep(1000,0);
+
         for(int retryCount = 0; retryCount < numberOfRetries; ++retryCount) {
             if (installAndStartTorOp() == false) {
                 return false;
@@ -157,38 +162,45 @@ public abstract class OnionProxyManager {
             throw new RuntimeException("Service is not running.");
         }
 
-        if(!hostnameFile.exists()) {
-            LOG.info("Creating hidden service");
-            try {
-                if (hostnameFile.getParentFile().exists() == false &&
-                        hostnameFile.getParentFile().mkdirs() == false) {
-                    throw new RuntimeException("Could not create hostnameFile parent directory");
-                }
+        List<ConfigEntry> currentHiddenServices = controlConnection.getConf("HiddenServiceOptions");
 
-                if (hostnameFile.createNewFile() == false) {
-                    throw new RuntimeException("Could not create hostnameFile");
-                }
+        if ((currentHiddenServices.size() == 1 &&
+                currentHiddenServices.get(0).key.equals("HiddenServiceOptions") &&
+                currentHiddenServices.get(0).value.equals("")) == false) {
+            throw new RuntimeException("Sorry, only one hidden service to a customer and we already have one. Please send complaints to https://github.com/thaliproject/Tor_Onion_Proxy_Library/issues/5 with your scenario so we can justify fixing this.");
+        }
 
-                // Watch for the hostname file being created/updated
-                WriteObserver hostNameFileObserver = onionProxyContext.generateWriteObserver(hostnameFile);
-                // Use the control connection to update the Tor config
-                List<String> config = Arrays.asList(
-                        "HiddenServiceDir " + hostnameFile.getParentFile().getAbsolutePath(),
-                        "HiddenServicePort " + hiddenServicePort + " 127.0.0.1:" + localPort);
-                controlConnection.setConf(config);
-                controlConnection.saveConf();
-                // Wait for the hostname file to be created/updated
-                if(!hostNameFileObserver.poll(HOSTNAME_TIMEOUT, MILLISECONDS)) {
-                    FileUtilities.listFiles(hostnameFile.getParentFile());
-                    throw new RuntimeException("Wait for hidden service hostname file to be created expired.");
-                }
-            } catch(IOException e) {
-                LOG.warn(e.toString(), e);
+        LOG.info("Creating hidden service");
+        try {
+            if (hostnameFile.getParentFile().exists() == false &&
+                    hostnameFile.getParentFile().mkdirs() == false) {
+                throw new RuntimeException("Could not create hostnameFile parent directory");
             }
+
+            if (hostnameFile.exists() == false && hostnameFile.createNewFile() == false) {
+                throw new RuntimeException("Could not create hostnameFile");
+            }
+
+            // Watch for the hostname file being created/updated
+            WriteObserver hostNameFileObserver = onionProxyContext.generateWriteObserver(hostnameFile);
+            // Use the control connection to update the Tor config
+            List<String> config = Arrays.asList(
+                    "HiddenServiceDir " + hostnameFile.getParentFile().getAbsolutePath(),
+                    "HiddenServicePort " + hiddenServicePort + " 127.0.0.1:" + localPort);
+            controlConnection.setConf(config);
+            controlConnection.saveConf();
+            // Wait for the hostname file to be created/updated
+            if(!hostNameFileObserver.poll(HOSTNAME_TIMEOUT, MILLISECONDS)) {
+                FileUtilities.listFiles(hostnameFile.getParentFile());
+                throw new RuntimeException("Wait for hidden service hostname file to be created expired.");
+            }
+        } catch(IOException e) {
+            LOG.warn(e.toString(), e);
         }
         // Publish the hidden service's onion hostname in transport properties
         String hostname = new String(FileUtilities.read(hostnameFile), "UTF-8").trim();
-        LOG.info("Hidden service " + hostname);
+        LOG.info("Hidden service config has completed.");
+
         return hostname;
     }
 

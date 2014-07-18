@@ -25,9 +25,11 @@ import static android.content.Context.MODE_PRIVATE;
 
 public class AndroidOnionProxyContext implements OnionProxyContext {
     private final Context context;
+    private final String workingSubDirectoryName;
 
-    public AndroidOnionProxyContext(Context context) {
+    public AndroidOnionProxyContext(Context context, String workingSubDirectoryName) {
         this.context = context;
+        this.workingSubDirectoryName = workingSubDirectoryName;
     }
 
     @Override
@@ -47,7 +49,7 @@ public class AndroidOnionProxyContext implements OnionProxyContext {
 
     @Override
     public File getWorkingDirectory() {
-        return context.getDir("tor", MODE_PRIVATE);
+        return context.getDir(workingSubDirectoryName, MODE_PRIVATE);
     }
 
     @Override
