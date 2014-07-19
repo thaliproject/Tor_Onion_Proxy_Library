@@ -96,13 +96,16 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
             clientManager = getOnionProxyManager(clientManagerDirectoryName);
             assertTrue(clientManager.startWithRepeat(30, 5));
 
-            runHiddenServiceTest(hiddenServiceManager, clientManager);
+            String onionAddress = runHiddenServiceTest(hiddenServiceManager, clientManager);
 
             // Now take down the hidden service manager and bring it back up with a new descriptor but the
             // same address
             hiddenServiceManager.stop();
             hiddenServiceManager.startWithRepeat(30, 5);
-            runHiddenServiceTest(hiddenServiceManager, clientManager);
+            // It's possible that one of our deletes could have nuked the hidden service directory
+            // in which case we would actually be testing against a new hidden service which would
+            // remove the point of this test. So we check that they are the same.
+            assertEquals(runHiddenServiceTest(hiddenServiceManager, clientManager), onionAddress);
         } finally {
             if (hiddenServiceManager != null) {
                 hiddenServiceManager.stop();
@@ -113,7 +116,7 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         }
     }
 
-    private void runHiddenServiceTest(OnionProxyManager hiddenServiceManager, OnionProxyManager clientManager)
+    private String runHiddenServiceTest(OnionProxyManager hiddenServiceManager, OnionProxyManager clientManager)
             throws IOException, InterruptedException {
         int localPort = 9343;
         int hiddenServicePort = 9344;
@@ -131,6 +134,7 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         clientOutputStream.write(testBytes);
         clientOutputStream.flush();
         assertTrue(countDownLatch.await(TOTAL_MINUTES_FOR_TEST_TO_RUN, TimeUnit.MINUTES));
+        return onionAddress;
     }
 
     /**

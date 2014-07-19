@@ -19,8 +19,6 @@ sourceCompatibility = 1.6
 
 repositories {
     mavenLocal()
-    maven { url "http://thaliartifactory.cloudapp.net/artifactory/libs-snapshot" }
-    maven { url "http://thaliartifactory.cloudapp.net/artifactory/libs-release" }
     mavenCentral()
 }
 

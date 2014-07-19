@@ -21,14 +21,123 @@ import java.util.List;
 /**
  * This class encapsulates data that is handled differently in Java and Android
  */
-public interface OnionProxyContext {
-    void installFiles() throws IOException;
-    File getGeoIpFile();
-    File getTorrcFile();
-    File getCookieFile();
-    File getHostNameFile();
-    File getTorExecutableFile();
-    File getWorkingDirectory(); // Equivalent of Android Context's getDir
-    WriteObserver generateWriteObserver(File file);
-    String getProcessId();
+abstract public class OnionProxyContext {
+    protected final static String hiddenserviceDirectoryName = "hiddenservice";
+    protected final static String geoIpName = "geoip";
+    protected final static String torrcName = "torrc";
+    protected final File workingDirectory;
+    protected final File geoIpFile;
+    protected final File torrcFile;
+    protected final File torExecutableFile;
+    protected final File cookieFile;
+    protected final File hostnameFile;
+
+    public OnionProxyContext(File workingDirectory) {
+        this.workingDirectory = workingDirectory;
+        geoIpFile = new File(getWorkingDirectory(), geoIpName);
+        torrcFile = new File(getWorkingDirectory(), torrcName);
+        torExecutableFile = new File(getWorkingDirectory(), getTorExecutableFileName());
+        cookieFile = new File(getWorkingDirectory(), ".tor/control_auth_cookie");
+        hostnameFile = new File(getWorkingDirectory(), "/" + hiddenserviceDirectoryName + "/hostname");
+    }
+
+    public void installFiles() throws IOException {
+        if (workingDirectory.exists() == false && workingDirectory.mkdirs() == false) {
+            throw new RuntimeException("Could not create root directory!");
+        }
+
+        FileUtilities.cleanInstallOneFile(getAssetOrResourceByName(geoIpName), geoIpFile);
+        FileUtilities.cleanInstallOneFile(getAssetOrResourceByName(torrcName), torrcFile);
+
+        switch(OsData.getOsType()) {
+            case Android:
+            case Windows:
+                FileUtilities.cleanInstallOneFile(
+                        getAssetOrResourceByName(getPathToTorExecutable() + getTorExecutableFileName()),
+                        torExecutableFile);
+                break;
+            case Mac:
+                FileUtilities.extractContentFromZip(getWorkingDirectory(),
+                        getAssetOrResourceByName(getPathToTorExecutable() + "tor.zip"));
+                break;
+            default:
+                throw new RuntimeException("We don't support Tor on this OS yet");
+        }
+    }
+
+    public File getGeoIpFile() {
+        return geoIpFile;
+    }
+
+    public File getTorrcFile() {
+        return torrcFile;
+    }
+
+    public File getCookieFile() {
+        return cookieFile;
+    }
+
+    public File getHostNameFile() {
+        return hostnameFile;
+    }
+
+    public File getTorExecutableFile() {
+        return torExecutableFile;
+    }
+
+    public File getWorkingDirectory() {
+        return workingDirectory;
+    }
+
+    public void deleteAllFilesButHiddenServices() {
+        for(File file : getWorkingDirectory().listFiles()) {
+            if (file.isDirectory()) {
+                if (file.getName().compareTo(hiddenserviceDirectoryName) != 0) {
+                    FileUtilities.recursiveFileDelete(file);
+                }
+            } else {
+                if (file.delete() == false) {
+                    throw new RuntimeException("Could not delete file " + file.getAbsolutePath());
+                }
+            }
+        }
+    }
+
+    /**
+     * Files we pull out of the AAR or JAR are typically at the root but for executables outside
+     * of Android the executable for a particular platform is in a specific sub-directory.
+     * @return
+     */
+    protected String getPathToTorExecutable() {
+        String path = "native/";
+        switch (OsData.getOsType()) {
+            case Android:
+                return "";
+            case Windows:
+                return path + "windows/x86/"; // We currently only support the x86 build but that should work everywhere
+            case Mac:
+                return path +  "osx/x64/"; // I don't think there even is a x32 build of Tor for Mac, but could be wrong.
+            default:
+                throw new RuntimeException("We don't support Tor on this OS yet");
+        }
+    }
+
+    protected String getTorExecutableFileName() {
+        switch(OsData.getOsType()) {
+            case Android:
+                return "tor";
+            case Windows:
+                return "tor.exe";
+            case Mac:
+                return "tor.real";
+            default:
+                throw new RuntimeException("We don't support Tor on this OS yet");
+        }
+    }
+
+    abstract public String getProcessId();
+    abstract public WriteObserver generateWriteObserver(File file);
+    abstract protected InputStream getAssetOrResourceByName(String fileName) throws IOException;
+
+
 }

@@ -47,50 +47,6 @@ public class JavaOnionProxyManager extends OnionProxyManager {
         super(onionProxyContext);
     }
 
-    /**
-     * This has to exist somewhere! Why isn't it a part of the standard Java library?
-     * @param destinationDirectory Directory files are to be extracted to
-     * @param zipFileInputStream Stream to unzip
-     */
-    private void extractContentFromZip(File destinationDirectory, InputStream zipFileInputStream) throws IOException {
-        ZipInputStream zipInputStream = null;
-        try {
-            zipInputStream = new ZipInputStream(zipFileInputStream);
-            ZipEntry zipEntry;
-            while ((zipEntry = zipInputStream.getNextEntry()) != null) {
-                File file = new File(destinationDirectory, zipEntry.getName());
-                if (zipEntry.isDirectory()) {
-                    if (file.mkdirs() == false) {
-                        throw new RuntimeException("Could not create directory " + file);
-                    }
-                } else {
-                    if (file.exists()) {
-                        throw new RuntimeException("You aren't supposed to have the same file twice in a zip - " + file);
-                    }
-
-                    if (file.createNewFile() == false) {
-                        throw new RuntimeException("Could not create file " + file);
-                    }
-
-                    OutputStream fileOutputStream = null;
-                    try {
-                        fileOutputStream = new FileOutputStream(file);
-
-                        FileUtilities.copyDontCloseInput(zipInputStream, fileOutputStream);
-                    } finally {
-                        if (fileOutputStream != null) {
-                            fileOutputStream.close();
-                        }
-                    }
-                }
-            }
-        } finally {
-            if (zipFileInputStream != null) {
-                zipFileInputStream.close();
-            }
-        }
-    }
-
     @Override
     protected boolean setExecutable(File f) {
         return f.setExecutable(true);

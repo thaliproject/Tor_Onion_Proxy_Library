@@ -27,4 +27,8 @@ public class TorOnionProxyTestCase extends TestCase {
     public OnionProxyContext getOnionProxyContext(String workingSubDirectoryName) {
         return new JavaOnionProxyContext(workingSubDirectoryName);
     }
+
+    public void testTorOnionProxyTestCaseSetupProperly() {
+        // Avoid No tests found Assertion Failed Error.
+    }
 }

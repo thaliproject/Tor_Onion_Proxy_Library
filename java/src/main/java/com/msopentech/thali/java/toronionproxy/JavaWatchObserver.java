@@ -29,7 +29,9 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.java.toronionproxy;
 
+import com.msopentech.thali.toronionproxy.OsData;
 import com.msopentech.thali.toronionproxy.WriteObserver;
+import com.sun.nio.file.SensitivityWatchEventModifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,15 +48,32 @@ public class JavaWatchObserver implements WriteObserver {
     private WatchService watchService;
     private WatchKey key;
     private File fileToWatch;
+    private long lastModified;
+    private long length;
     private static final Logger LOG = LoggerFactory.getLogger(WriteObserver.class);
 
+
     public JavaWatchObserver(File fileToWatch) throws IOException {
+        if (fileToWatch == null || fileToWatch.exists() == false) {
+            throw new RuntimeException("fileToWatch must not be null and must already exist.");
+        }
         this.fileToWatch = fileToWatch;
+        lastModified = fileToWatch.lastModified();
+        length = fileToWatch.length();
 
         watchService = FileSystems.getDefault().newWatchService();
         // Note that poll depends on us only registering events that are of type path
-        key = fileToWatch.getParentFile().toPath().register(watchService, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE,
-                StandardWatchEventKinds.ENTRY_MODIFY);
+        if (OsData.getOsType() != OsData.OsType.Mac) {
+            key = fileToWatch.getParentFile().toPath().register(watchService, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE,
+                    StandardWatchEventKinds.ENTRY_MODIFY);
+        } else {
+            // Unfortunately the default watch service on Mac is broken, it uses a separate thread and really slow polling to detect file changes
+            // rather than integrating with the OS. There is a hack to make it poll faster which we can use for now. See
+            // http://stackoverflow.com/questions/9588737/is-java-7-watchservice-slow-for-anyone-else
+            key = fileToWatch.getParentFile().toPath().register(watchService, new WatchEvent.Kind[]
+                    {StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE,
+                    StandardWatchEventKinds.ENTRY_MODIFY}, SensitivityWatchEventModifier.HIGH);
+        }
     }
 
     @Override
@@ -95,14 +114,17 @@ public class JavaWatchObserver implements WriteObserver {
                 }
 
                 if (timeWaitedInNanos >= remainingTimeoutInNanos) {
-                    result = false;
-                    return result;
+                    break;
                 }
 
                 remainingTimeoutInNanos -= timeWaitedInNanos;
             }
 
-            result = false;
+            // Even with the high sensitivty setting above for the Mac the polling still misses changes so I've added
+            // a last modified check as a backup. Except I personally witnessed last modified not returning a new value
+            // value even when I saw the file change!!!! So I'm also adding in a length check. Java really seems to
+            // have an issue with the OS/X file system.
+            result = (fileToWatch.lastModified() != lastModified) || (fileToWatch.length() != length);
             return result;
         } catch (InterruptedException e) {
             throw new RuntimeException("Internal error has caused JavaWatchObserver to not be reliable.", e);

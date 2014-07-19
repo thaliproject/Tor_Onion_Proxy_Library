@@ -20,74 +20,26 @@ import com.msopentech.thali.toronionproxy.WriteObserver;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 
 import static android.content.Context.MODE_PRIVATE;
 
-public class AndroidOnionProxyContext implements OnionProxyContext {
+public class AndroidOnionProxyContext extends OnionProxyContext {
     private final Context context;
-    private final static String geoIpName = "geoip";
-    private final static String torrcName = "torrc";
-    private final static String torExecutableName = "tor";
-    private final File workingDirectory;
-    private final File geoIpFile;
-    private final File torrcFile;
-    private final File torExecutableFile;
-    private final File cookieFile;
-    private final File hostnameFile;
 
     public AndroidOnionProxyContext(Context context, String workingSubDirectoryName) {
+        super(context.getDir(workingSubDirectoryName, MODE_PRIVATE));
         this.context = context;
-        workingDirectory = context.getDir(workingSubDirectoryName, MODE_PRIVATE);
-        geoIpFile = new File(getWorkingDirectory(), geoIpName);
-        torrcFile = new File(getWorkingDirectory(), torrcName);
-        torExecutableFile = new File(getWorkingDirectory(), torExecutableName);
-        cookieFile = new File(getWorkingDirectory(), ".tor/control_auth_cookie");
-        hostnameFile = new File(getWorkingDirectory(), "/hiddenservice/hostname");
-    }
-
-    @Override
-    public void installFiles() throws IOException {
-        if (workingDirectory.exists() == false && workingDirectory.mkdirs() == false) {
-            throw new RuntimeException("Could not create Tor working directory.");
-        }
-        FileUtilities.cleanInstallOneFile(context.getResources().getAssets().open(geoIpName), geoIpFile);
-        FileUtilities.cleanInstallOneFile(context.getResources().getAssets().open(torrcName), torrcFile);
-        FileUtilities.cleanInstallOneFile(context.getResources().getAssets().open(torExecutableName), torExecutableFile);
-    }
-
-    @Override
-    public File getGeoIpFile() {
-        return geoIpFile;
-    }
-
-    @Override
-    public File getTorrcFile() {
-        return torrcFile;
-    }
-
-    @Override
-    public File getCookieFile() {
-        return cookieFile;
-    }
-
-    @Override
-    public File getHostNameFile() {
-        return hostnameFile;
-    }
-
-    @Override
-    public File getTorExecutableFile() {
-        return torExecutableFile;
-    }
-
-    @Override
-    public File getWorkingDirectory() {
-        return workingDirectory;
     }
 
     @Override
     public WriteObserver generateWriteObserver(File file) {
         return new AndroidWriteObserver(file);
+    }
+
+    @Override
+    protected InputStream getAssetOrResourceByName(String fileName) throws IOException {
+        return context.getResources().getAssets().open(fileName);
     }
 
     @Override

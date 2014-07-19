@@ -181,8 +181,10 @@ public class FileUtilities {
                         throw new RuntimeException("Could not create directory " + file);
                     }
                 } else {
-                    if (file.exists()) {
-                        throw new RuntimeException("You aren't supposed to have the same file twice in a zip - " + file);
+                    if (file.exists() && file.delete() == false) {
+                        throw new RuntimeException(
+                                "Could not delete file in preparation for overwriting it. File - " +
+                                        file.getAbsolutePath());
                     }
 
                     if (file.createNewFile() == false) {

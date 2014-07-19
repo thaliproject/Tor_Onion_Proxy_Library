@@ -78,39 +78,51 @@ public abstract class OnionProxyManager {
      * @return True if bootsrap succeeded, false if there is a problem or the bootstrap couldn't complete in the given
      * time.
      */
-    public boolean startWithRepeat(int secondsBeforeTimeOut, int numberOfRetries)
-            throws IOException, InterruptedException {
+    public boolean startWithRepeat(int secondsBeforeTimeOut, int numberOfRetries) throws
+            InterruptedException, IOException {
         if (secondsBeforeTimeOut <= 0 || numberOfRetries < 0) {
             throw new IllegalArgumentException("secondsBeforeTimeOut >= 0 & numberOfRetries > 0");
         }
 
-        // This is sleezy but we have cases where an old instance of the Tor OP needs an extra second to
-        // clean itself up. Without that time we can't do things like delete its binary (which we currently
-        // do by default, something we hope to fix with https://github.com/thaliproject/Tor_Onion_Proxy_Library/issues/13
-        Thread.sleep(1000,0);
-
-        for(int retryCount = 0; retryCount < numberOfRetries; ++retryCount) {
-            if (installAndStartTorOp() == false) {
-                return false;
-            }
-            enableNetwork(true);
-
-            // We will check every second to see if boot strapping has finally finished
-            for(int secondsWaited = 0; secondsWaited < secondsBeforeTimeOut; ++secondsWaited) {
-                if (isBootstrapped() == false) {
-                    Thread.sleep(1000,0);
-                } else {
-                    return true;
-                }
-            }
-
-            // Bootstrapping isn't over so we need to restart and try again
-            stop();
-            // It can take a little bit for the Tor OP to detect the connection is dead and kill itself
+        try {
+            // This is sleezy but we have cases where an old instance of the Tor OP needs an extra second to
+            // clean itself up. Without that time we can't do things like delete its binary (which we currently
+            // do by default, something we hope to fix with https://github.com/thaliproject/Tor_Onion_Proxy_Library/issues/13
             Thread.sleep(1000,0);
-        }
 
-        return false;
+            for(int retryCount = 0; retryCount < numberOfRetries; ++retryCount) {
+                if (installAndStartTorOp() == false) {
+                    return false;
+                }
+                enableNetwork(true);
+
+                // We will check every second to see if boot strapping has finally finished
+                for(int secondsWaited = 0; secondsWaited < secondsBeforeTimeOut; ++secondsWaited) {
+                    if (isBootstrapped() == false) {
+                        Thread.sleep(1000,0);
+                    } else {
+                        return true;
+                    }
+                }
+
+                // Bootstrapping isn't over so we need to restart and try again
+                stop();
+                // It can take a little bit for the Tor OP to detect the connection is dead and kill itself
+                Thread.sleep(1000,0);
+                // Experimentally we have found that if the Tor OP doesn't start right away then
+                // trying to start it again isn't likely to work because it seems that the cached
+                // files get themselves in some sort of strange state. By deleting those files
+                // we usually can get the Tor OP running again.
+                onionProxyContext.deleteAllFilesButHiddenServices();
+            }
+
+            return false;
+        } finally {
+            // Make sure we return the Tor OP in some kind of consistent state, even if it's 'off'.
+            if (isRunning() == false) {
+                stop();
+            }
+        }
     }
 
     /**
@@ -150,8 +162,8 @@ public abstract class OnionProxyManager {
         List<ConfigEntry> currentHiddenServices = controlConnection.getConf("HiddenServiceOptions");
 
         if ((currentHiddenServices.size() == 1 &&
-                currentHiddenServices.get(0).key.equals("HiddenServiceOptions") &&
-                currentHiddenServices.get(0).value.equals("")) == false) {
+                currentHiddenServices.get(0).key.compareTo("HiddenServiceOptions") == 0 &&
+                currentHiddenServices.get(0).value.compareTo("") == 0) == false) {
             throw new RuntimeException("Sorry, only one hidden service to a customer and we already have one. Please send complaints to https://github.com/thaliproject/Tor_Onion_Proxy_Library/issues/5 with your scenario so we can justify fixing this.");
         }
 
