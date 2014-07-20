@@ -16,6 +16,7 @@ package com.msopentech.thali.toronionproxy;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -63,6 +64,19 @@ abstract public class OnionProxyContext {
             default:
                 throw new RuntimeException("We don't support Tor on this OS yet");
         }
+    }
+
+    public String[] getEnvironmentArgsForExec() {
+        List<String> envArgs = new ArrayList<String>();
+        envArgs.add("HOME=" + getWorkingDirectory().getAbsolutePath() );
+        switch(OsData.getOsType()) {
+            case Linux32:
+            case Linux64:
+                envArgs.add("LD_LIBRARY_PATH=" + getWorkingDirectory());
+            default:
+                break;
+        }
+        return envArgs.toArray(new String[envArgs.size()]);
     }
 
     public File getGeoIpFile() {

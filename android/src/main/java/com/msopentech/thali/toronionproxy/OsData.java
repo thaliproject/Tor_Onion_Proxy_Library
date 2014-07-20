@@ -29,10 +29,18 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.toronionproxy;
 
+import java.io.IOException;
+import java.util.Scanner;
+
 public class OsData {
-    public enum OsType { Windows, Linux, Mac, Android }
+    public enum OsType { Windows, Linux32, Linux64, Mac, Android }
+    private static OsType detectedType = null;
 
     public static OsType getOsType() {
+        if (detectedType != null) {
+            return detectedType;
+        }
+
         if (System.getProperty("java.vm.name").contains("Dalvik")) {
             return OsType.Android;
         }
@@ -43,8 +51,45 @@ public class OsData {
         } else if (osName.contains("Mac")) {
             return OsType.Mac;
         } else if (osName.contains("Linux")) {
-            return OsType.Linux;
+           return getLinuxType();
         }
         throw new RuntimeException("Unsupported OS");
+    }
+
+    protected static OsType getLinuxType() {
+        String [] cmd = { "uname", "-m" };
+        Process unameProcess = null;
+        try {
+            String unameOutput;
+            unameProcess = Runtime.getRuntime().exec(cmd);
+
+            Scanner scanner = new Scanner(unameProcess.getInputStream());
+            if (scanner.hasNextLine()) {
+                unameOutput = scanner.nextLine();
+            } else {
+                throw new RuntimeException("Couldn't get output from uname call");
+            }
+
+            int exit = unameProcess.waitFor();
+            if (exit != 0) {
+                throw new RuntimeException("Uname returned error code " + exit);
+            }
+
+            if (unameOutput.compareTo("i686") == 0) {
+                return OsType.Linux32;
+            }
+            if (unameOutput.compareTo("x86_64") == 0) {
+                return OsType.Linux64;
+            }
+            throw new RuntimeException("Could not understand uname output, not sure what bitness");
+        } catch (IOException e) {
+            throw new RuntimeException("Uname failure", e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Uname failure", e);
+        } finally {
+            if (unameProcess != null) {
+                unameProcess.destroy();
+            }
+        }
     }
 }

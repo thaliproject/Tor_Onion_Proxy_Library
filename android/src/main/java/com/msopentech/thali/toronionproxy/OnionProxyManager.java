@@ -316,7 +316,6 @@ public abstract class OnionProxyManager {
         LOG.info("Tor is not running");
 
         installAndConfigureFiles();
-        File torExecutableFile = onionProxyContext.getTorExecutableFile();
 
         LOG.info("Starting Tor");
         File cookieFile = onionProxyContext.getCookieFile();
@@ -336,13 +335,12 @@ public abstract class OnionProxyManager {
         // Watch for the auth cookie file being created/updated
         WriteObserver cookieObserver = onionProxyContext.generateWriteObserver(cookieFile);
         // Start a new Tor process
-        String torPath = torExecutableFile.getAbsolutePath();
+        String torPath = onionProxyContext.getTorExecutableFile().getAbsolutePath();
         String configPath = onionProxyContext.getTorrcFile().getAbsolutePath();
         String pid = onionProxyContext.getProcessId();
         String[] cmd = { torPath, "-f", configPath, OWNER, pid };
-        String[] env = { "HOME=" + workingDirectory.getAbsolutePath() };
+        String[] env = onionProxyContext.getEnvironmentArgsForExec();
         Process torProcess = null;
-        boolean startWorked = false;
         try {
             torProcess = Runtime.getRuntime().exec(cmd, env, workingDirectory);
             CountDownLatch controlPortCountDownLatch = new CountDownLatch(1);
