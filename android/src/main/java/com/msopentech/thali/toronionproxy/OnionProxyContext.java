@@ -57,6 +57,8 @@ abstract public class OnionProxyContext {
                         getAssetOrResourceByName(getPathToTorExecutable() + getTorExecutableFileName()),
                         torExecutableFile);
                 break;
+            case Linux32:
+            case Linux64:
             case Mac:
                 FileUtilities.extractContentFromZip(getWorkingDirectory(),
                         getAssetOrResourceByName(getPathToTorExecutable() + "tor.zip"));
@@ -72,7 +74,10 @@ abstract public class OnionProxyContext {
         switch(OsData.getOsType()) {
             case Linux32:
             case Linux64:
-                envArgs.add("LD_LIBRARY_PATH=" + getWorkingDirectory());
+                // We have to provide the LD_LIBRARY_PATH because when looking for dynamic libraries
+                // Linux apparently will not look in the current directory by default. By setting this
+                // environment variable we fix that.
+                envArgs.add("LD_LIBRARY_PATH=" + getWorkingDirectory().getAbsolutePath());
             default:
                 break;
         }
@@ -131,6 +136,10 @@ abstract public class OnionProxyContext {
                 return path + "windows/x86/"; // We currently only support the x86 build but that should work everywhere
             case Mac:
                 return path +  "osx/x64/"; // I don't think there even is a x32 build of Tor for Mac, but could be wrong.
+            case Linux32:
+                return path + "linux/x86/";
+            case Linux64:
+                return path + "linux/x64/";
             default:
                 throw new RuntimeException("We don't support Tor on this OS yet");
         }
@@ -139,6 +148,8 @@ abstract public class OnionProxyContext {
     protected String getTorExecutableFileName() {
         switch(OsData.getOsType()) {
             case Android:
+            case Linux32:
+            case Linux64:
                 return "tor";
             case Windows:
                 return "tor.exe";
@@ -152,6 +163,4 @@ abstract public class OnionProxyContext {
     abstract public String getProcessId();
     abstract public WriteObserver generateWriteObserver(File file);
     abstract protected InputStream getAssetOrResourceByName(String fileName) throws IOException;
-
-
 }

@@ -37,9 +37,18 @@ public class OsData {
     private static OsType detectedType = null;
 
     public static OsType getOsType() {
-        if (detectedType != null) {
-            return detectedType;
+        if (detectedType == null) {
+            detectedType = actualGetOsType();
         }
+
+        return detectedType;
+    }
+
+    /**
+     * Yes, I should use a proper memoization abstract class but, um, next time.
+     * @return
+     */
+    protected static OsType actualGetOsType() {
 
         if (System.getProperty("java.vm.name").contains("Dalvik")) {
             return OsType.Android;
@@ -51,7 +60,7 @@ public class OsData {
         } else if (osName.contains("Mac")) {
             return OsType.Mac;
         } else if (osName.contains("Linux")) {
-           return getLinuxType();
+            return getLinuxType();
         }
         throw new RuntimeException("Unsupported OS");
     }
