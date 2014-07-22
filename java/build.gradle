@@ -1,0 +1,102 @@
+/*
+Copyright (c) Microsoft Open Technologies, Inc.
+All Rights Reserved
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
+License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+INCLUDING WITHOUT LIMITATION ANY IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+MERCHANTABLITY OR NON-INFRINGEMENT.
+
+See the Apache 2 License for the specific language governing permissions and limitations under the License.
+*/
+
+apply plugin: 'java'
+apply plugin: 'maven'
+
+sourceCompatibility = 1.6
+
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: '*.jar')
+    compile 'org.slf4j:slf4j-api:1.7.7'
+
+    testCompile 'junit:junit:4.11'
+    testCompile 'org.slf4j:slf4j-simple:1.7.7'
+}
+
+def mavenPath() {
+    artifactory_local == "true" ?
+            'file://' + new File(System.getProperty('user.home'), '.m2/repository').absolutePath :
+            artifactory_contextUrl + "/libs-release-local"
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            repository(url: mavenPath()) {
+                authentication(userName: "${artifactory_user}", password: "${artifactory_password}")
+            }
+
+            pom.version = "0.0.0"
+            pom.groupId = 'com.msopentech.thali'
+            pom.artifactId = 'ThaliOnionProxyJava'
+            pom.project {
+                licenses {
+                    license {
+                        name 'Apache 2.0'
+                        url 'https://thali.codeplex.com/SourceControl/latest#license.txt'
+                        distribution 'repo'
+                    }
+                }
+            }
+        }
+    }
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.java.srcDirs
+}
+
+task generateJavadocs(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    source = sourceSets.main.java.srcDirs
+}
+
+artifacts {
+    archives sourcesJar
+    archives generateJavadocs
+}
+
+
+// Copying content from Android over to Java
+task deleteSourceFiles(type: Delete) {
+    delete 'src/test/java/com/msopentech/thali/toronionproxy'
+    delete 'src/main/java/com/msopentech/thali/toronionproxy'
+    delete 'src/main/resources/torrc'
+    delete 'src/main/resources/geoip'
+}
+
+task copyTorOnionProxyTest(type: Copy, dependsOn: deleteSourceFiles) {
+    from "../android/src/androidTest/java/com/msopentech/thali/toronionproxy"
+    into 'src/test/java/com/msopentech/thali/toronionproxy'
+}
+
+task copyTorOnionProxyMain(type: Copy, dependsOn: copyTorOnionProxyTest) {
+    from "../android/src/main/java/com/msopentech/thali/toronionproxy"
+    into 'src/main/java/com/msopentech/thali/toronionproxy'
+}
+
+task copyResources(type: Copy, dependsOn: copyTorOnionProxyMain) {
+    from "../android/src/main/assets/torrc"
+    from "../android/src/main/assets/geoip"
+    into 'src/main/resources'
+}
+
+build.dependsOn(copyResources)
