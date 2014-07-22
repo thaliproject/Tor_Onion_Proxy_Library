@@ -29,20 +29,12 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.java.toronionproxy;
 
-import com.msopentech.thali.toronionproxy.FileUtilities;
 import com.msopentech.thali.toronionproxy.OnionProxyContext;
 import com.msopentech.thali.toronionproxy.OnionProxyManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import sun.misc.IOUtils;
 
-import java.io.*;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.io.File;
 
 public class JavaOnionProxyManager extends OnionProxyManager {
-    private static final Logger LOG = LoggerFactory.getLogger(JavaOnionProxyManager.class);
-
     public JavaOnionProxyManager(OnionProxyContext onionProxyContext) {
         super(onionProxyContext);
     }

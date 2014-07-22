@@ -83,6 +83,12 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
     private static final int TOTAL_MINUTES_FOR_TEST_TO_RUN = 3;
     private static final Logger LOG = LoggerFactory.getLogger(TorOnionProxySmokeTest.class);
 
+    /**
+     * Start two TorOPs, one for a hidden service and one for a client. Have the hidden service op stop and start
+     * and see if the client can get connected again.
+     * @throws IOException
+     * @throws InterruptedException
+     */
     public void testHiddenServiceRecycleTime() throws IOException, InterruptedException {
         String hiddenServiceManagerDirectoryName = "hiddenservicemanager";
         String clientManagerDirectoryName = "clientmanager";
@@ -139,13 +145,13 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
 
     /**
      * It can take awhile for a new hidden service to get registered
-     * @param onionAddress
-     * @param hiddenServicePort
-     * @param socksPort
-     * @return
+     * @param onionAddress DNS style hidden service address of from x.onion
+     * @param hiddenServicePort Hidden service's port
+     * @param socksPort Socks port that Tor OP is listening on
+     * @return A socket via Tor that is connected to the hidden service
      */
     private Socket getClientSocket(String onionAddress, int hiddenServicePort, int socksPort)
-            throws InterruptedException, IOException {
+            throws InterruptedException {
         long timeToExit = Calendar.getInstance().getTimeInMillis() + TOTAL_MINUTES_FOR_TEST_TO_RUN*60*1000;
         Socket clientSocket = null;
         while (Calendar.getInstance().getTimeInMillis() < timeToExit && clientSocket == null) {
@@ -261,6 +267,7 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
             throw new IOException("SOCKS4a connect failed, got " + firstByte + " - " + secondByte +
                     ", but expected 0x00 - 0x5a");
         }
+        LOG.info("We got a socket!");
         inputStream.readShort();
         inputStream.readInt();
         return socket;

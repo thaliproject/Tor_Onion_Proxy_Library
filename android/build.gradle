@@ -32,7 +32,7 @@ android {
     buildToolsVersion "19.0.1"
 
     defaultConfig {
-        minSdkVersion 18
+        minSdkVersion 1
         targetSdkVersion 19
     }
 
@@ -66,7 +66,7 @@ uploadArchives {
                 authentication(userName: "${artifactory_user}", password: "${artifactory_password}")
             }
 
-            pom.version = "0.0.2"
+            pom.version = "0.0.0"
             pom.groupId = 'com.msopentech.thali'
             pom.artifactId = 'TorOnionProxyAndroid'
             pom.project {

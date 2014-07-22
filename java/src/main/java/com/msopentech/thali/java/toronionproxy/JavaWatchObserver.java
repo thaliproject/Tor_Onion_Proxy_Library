@@ -38,7 +38,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
-import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -120,7 +119,7 @@ public class JavaWatchObserver implements WriteObserver {
                 remainingTimeoutInNanos -= timeWaitedInNanos;
             }
 
-            // Even with the high sensitivty setting above for the Mac the polling still misses changes so I've added
+            // Even with the high sensitivity setting above for the Mac the polling still misses changes so I've added
             // a last modified check as a backup. Except I personally witnessed last modified not returning a new value
             // value even when I saw the file change!!!! So I'm also adding in a length check. Java really seems to
             // have an issue with the OS/X file system.

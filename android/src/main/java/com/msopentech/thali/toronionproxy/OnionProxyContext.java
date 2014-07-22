@@ -20,7 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * This class encapsulates data that is handled differently in Java and Android
+ * This class encapsulates data that is handled differently in Java and Android as well
+ * as managing file locations.
  */
 abstract public class OnionProxyContext {
     protected final static String hiddenserviceDirectoryName = "hiddenservice";
@@ -42,7 +43,12 @@ abstract public class OnionProxyContext {
         hostnameFile = new File(getWorkingDirectory(), "/" + hiddenserviceDirectoryName + "/hostname");
     }
 
-    public void installFiles() throws IOException {
+    public void installFiles() throws IOException, InterruptedException {
+        // This is sleezy but we have cases where an old instance of the Tor OP needs an extra second to
+        // clean itself up. Without that time we can't do things like delete its binary (which we currently
+        // do by default, something we hope to fix with https://github.com/thaliproject/Tor_Onion_Proxy_Library/issues/13
+        Thread.sleep(1000,0);
+
         if (workingDirectory.exists() == false && workingDirectory.mkdirs() == false) {
             throw new RuntimeException("Could not create root directory!");
         }
@@ -108,7 +114,9 @@ abstract public class OnionProxyContext {
         return workingDirectory;
     }
 
-    public void deleteAllFilesButHiddenServices() {
+    public void deleteAllFilesButHiddenServices() throws InterruptedException {
+        // It can take a little bit for the Tor OP to detect the connection is dead and kill itself
+        Thread.sleep(1000,0);
         for(File file : getWorkingDirectory().listFiles()) {
             if (file.isDirectory()) {
                 if (file.getName().compareTo(hiddenserviceDirectoryName) != 0) {
@@ -125,7 +133,7 @@ abstract public class OnionProxyContext {
     /**
      * Files we pull out of the AAR or JAR are typically at the root but for executables outside
      * of Android the executable for a particular platform is in a specific sub-directory.
-     * @return
+     * @return Path to executable in JAR Resources
      */
     protected String getPathToTorExecutable() {
         String path = "native/";
@@ -141,7 +149,7 @@ abstract public class OnionProxyContext {
             case Linux64:
                 return path + "linux/x64/";
             default:
-                throw new RuntimeException("We don't support Tor on this OS yet");
+                throw new RuntimeException("We don't support Tor on this OS");
         }
     }
 
@@ -156,7 +164,7 @@ abstract public class OnionProxyContext {
             case Mac:
                 return "tor.real";
             default:
-                throw new RuntimeException("We don't support Tor on this OS yet");
+                throw new RuntimeException("We don't support Tor on this OS");
         }
     }
 

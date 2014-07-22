@@ -37,20 +37,17 @@ import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
-import com.msopentech.thali.toronionproxy.FileUtilities;
 import com.msopentech.thali.toronionproxy.OnionProxyManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 
 import static android.content.Context.CONNECTIVITY_SERVICE;
 import static android.net.ConnectivityManager.CONNECTIVITY_ACTION;
 import static android.net.ConnectivityManager.EXTRA_NO_CONNECTIVITY;
 
-/**
- * This code was created using code from TorPlugin in Briar
- */
 public class AndroidOnionProxyManager extends OnionProxyManager {
     private static final Logger LOG = LoggerFactory.getLogger(AndroidOnionProxyManager.class);
 
@@ -68,7 +65,7 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
     }
 
     @Override
-    public boolean installAndStartTorOp() throws IOException {
+    public boolean installAndStartTorOp() throws IOException, InterruptedException {
         if (super.installAndStartTorOp()) {
             // Register to receive network status events
             networkStateReceiver = new NetworkStateReceiver();
@@ -81,9 +78,12 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
 
     @Override
     public void stop() throws IOException {
-        super.stop();
-        if(networkStateReceiver != null) {
-            context.unregisterReceiver(networkStateReceiver);
+        try {
+            super.stop();
+        } finally {
+            if (networkStateReceiver != null) {
+                context.unregisterReceiver(networkStateReceiver);
+            }
         }
     }
 

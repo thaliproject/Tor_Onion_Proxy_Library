@@ -46,7 +46,7 @@ public class OsData {
 
     /**
      * Yes, I should use a proper memoization abstract class but, um, next time.
-     * @return
+     * @return Type of OS we are running on
      */
     protected static OsType actualGetOsType() {
 

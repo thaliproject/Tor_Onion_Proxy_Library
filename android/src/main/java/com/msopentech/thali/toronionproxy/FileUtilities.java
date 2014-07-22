@@ -79,8 +79,8 @@ public class FileUtilities {
 
     /**
      * Closes both input and output streams when done.
-     * @param in
-     * @param out
+     * @param in Stream to read from
+     * @param out Stream to write to
      * @throws java.io.IOException
      */
     public static void copy(InputStream in, OutputStream out) throws IOException {
@@ -110,16 +110,8 @@ public class FileUtilities {
         }
     }
 
-    public static void tryToClose(Closeable closeable) {
-        try {
-            if(closeable != null) closeable.close();
-        } catch(IOException e) {
-            LOG.warn(e.toString(), e);
-        }
-    }
-
-    public static void listFiles(File f) {
-        if(f.isDirectory()) for(File child : f.listFiles()) listFiles(child);
+    public static void listFilesToLog(File f) {
+        if(f.isDirectory()) for(File child : f.listFiles()) listFilesToLog(child);
         else LOG.info(f.getAbsolutePath());
     }
 
@@ -140,10 +132,9 @@ public class FileUtilities {
     }
 
     /**
-     * Reads the input stream, deletes fileToWriteTo if it exists
-     * and over writes it with the stream.
-     * @param readFrom
-     * @param fileToWriteTo
+     * Reads the input stream, deletes fileToWriteTo if it exists and over writes it with the stream.
+     * @param readFrom Stream to read from
+     * @param fileToWriteTo File to write to
      * @throws IOException
      */
     public static void cleanInstallOneFile(InputStream readFrom, File fileToWriteTo) throws IOException {
@@ -161,7 +152,9 @@ public class FileUtilities {
             }
         }
 
-        fileOrDirectory.delete();
+        if (fileOrDirectory.delete() == false) {
+            throw new RuntimeException("Could not delete directory " + fileOrDirectory.getAbsolutePath());
+        }
     }
 
     /**
@@ -169,15 +162,16 @@ public class FileUtilities {
      * @param destinationDirectory Directory files are to be extracted to
      * @param zipFileInputStream Stream to unzip
      */
-    public static void extractContentFromZip(File destinationDirectory, InputStream zipFileInputStream) throws IOException {
-        ZipInputStream zipInputStream = null;
+    public static void extractContentFromZip(File destinationDirectory, InputStream zipFileInputStream)
+            throws IOException {
+        ZipInputStream zipInputStream;
         try {
             zipInputStream = new ZipInputStream(zipFileInputStream);
             ZipEntry zipEntry;
             while ((zipEntry = zipInputStream.getNextEntry()) != null) {
                 File file = new File(destinationDirectory, zipEntry.getName());
                 if (zipEntry.isDirectory()) {
-                    if (file.mkdirs() == false) {
+                    if (file.exists() == false && file.mkdirs() == false) {
                         throw new RuntimeException("Could not create directory " + file);
                     }
                 } else {
@@ -191,16 +185,8 @@ public class FileUtilities {
                         throw new RuntimeException("Could not create file " + file);
                     }
 
-                    OutputStream fileOutputStream = null;
-                    try {
-                        fileOutputStream = new FileOutputStream(file);
-
-                        copyDontCloseInput(zipInputStream, fileOutputStream);
-                    } finally {
-                        if (fileOutputStream != null) {
-                            fileOutputStream.close();
-                        }
-                    }
+                    OutputStream fileOutputStream = new FileOutputStream(file);
+                    copyDontCloseInput(zipInputStream, fileOutputStream);
                 }
             }
         } finally {

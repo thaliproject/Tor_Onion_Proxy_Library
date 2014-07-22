@@ -43,7 +43,7 @@ uploadArchives {
                 authentication(userName: "${artifactory_user}", password: "${artifactory_password}")
             }
 
-            pom.version = "0.0.2"
+            pom.version = "0.0.0"
             pom.groupId = 'com.msopentech.thali'
             pom.artifactId = 'ThaliOnionProxyJava'
             pom.project {

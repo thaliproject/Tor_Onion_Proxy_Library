@@ -14,7 +14,6 @@ See the Apache 2 License for the specific language governing permissions and lim
 package com.msopentech.thali.android.toronionproxy;
 
 import android.content.Context;
-import com.msopentech.thali.toronionproxy.FileUtilities;
 import com.msopentech.thali.toronionproxy.OnionProxyContext;
 import com.msopentech.thali.toronionproxy.WriteObserver;
 
