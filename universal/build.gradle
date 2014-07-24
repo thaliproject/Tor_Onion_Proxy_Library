@@ -11,47 +11,23 @@ MERCHANTABLITY OR NON-INFRINGEMENT.
 See the Apache 2 License for the specific language governing permissions and limitations under the License.
 */
 
-buildscript {
-    repositories {
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:0.9.+'
-    }
-}
-apply plugin: 'android-library'
+apply plugin: 'java'
 apply plugin: 'maven'
+
+sourceCompatibility = 1.6
+
 
 repositories {
     mavenLocal()
     mavenCentral()
 }
 
-android {
-    compileSdkVersion 19
-    buildToolsVersion "19.0.1"
-
-    defaultConfig {
-        minSdkVersion 1
-        targetSdkVersion 19
-    }
-
-    // Needed to work around https://code.google.com/p/android/issues/detail?id=61573#c14
-    packagingOptions {
-        exclude 'META-INF/LICENSE'
-        exclude 'META-INF/NOTICE'
-        exclude 'META-INF/ASL2.0'
-        exclude 'META-INF/NOTICE.txt' //https://groups.google.com/forum/#!topic/adt-dev/bl5Rc4Szpzg
-        exclude 'META-INF/LICENSE.txt'
-    }
-}
-
 dependencies {
-    compile fileTree(dir: '../universal/libs', include: '*.jar')
+    compile fileTree(dir: 'libs', include: '*.jar')
     compile 'org.slf4j:slf4j-api:1.7.7'
-    compile 'com.msopentech.thali:ThaliOnionProxyUniversal:0.0.0'
 
-    androidTestCompile 'org.slf4j:slf4j-android:1.7.7'
+    testCompile 'junit:junit:4.11'
+    testCompile 'org.slf4j:slf4j-simple:1.7.7'
 }
 
 def mavenPath() {
@@ -69,7 +45,7 @@ uploadArchives {
 
             pom.version = "0.0.0"
             pom.groupId = 'com.msopentech.thali'
-            pom.artifactId = 'ThaliOnionProxyAndroid'
+            pom.artifactId = 'ThaliOnionProxyUniversal'
             pom.project {
                 licenses {
                     license {
@@ -83,25 +59,17 @@ uploadArchives {
     }
 }
 
-task sourcesJar(type: Jar) {
+task sourcesJar(type: Jar, dependsOn: classes) {
     classifier = 'sources'
-    from android.sourceSets.main.java.srcDirs
+    from sourceSets.main.java.srcDirs
+}
+
+task generateJavadocs(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    source = sourceSets.main.java.srcDirs
 }
 
 artifacts {
     archives sourcesJar
+    archives generateJavadocs
 }
-
-task deleteSourceFiles(type: Delete) {
-    delete 'src/main/assets/geoip'
-    delete 'src/main/assets/torrc'
-}
-
-task copyResources(type: Copy, dependsOn: deleteSourceFiles) {
-    from "../universal/commonResources/torrc"
-    from "../universal/commonResources/geoip"
-    into 'src/main/assets'
-}
-
-build.dependsOn(copyResources)
-uploadArchives.dependsOn(copyResources)

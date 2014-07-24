@@ -23,8 +23,9 @@ repositories {
 }
 
 dependencies {
-    compile fileTree(dir: 'libs', include: '*.jar')
+    compile fileTree(dir: '../universal/libs', include: '*.jar')
     compile 'org.slf4j:slf4j-api:1.7.7'
+    compile 'com.msopentech.thali:ThaliOnionProxyUniversal:0.0.0'
 
     testCompile 'junit:junit:4.11'
     testCompile 'org.slf4j:slf4j-simple:1.7.7'
@@ -77,7 +78,6 @@ artifacts {
 
 // Copying content from Android over to Java
 task deleteSourceFiles(type: Delete) {
-    delete 'src/test/java/com/msopentech/thali/toronionproxy'
     delete 'src/main/java/com/msopentech/thali/toronionproxy'
     delete 'src/main/resources/torrc'
     delete 'src/main/resources/geoip'
@@ -88,15 +88,11 @@ task copyTorOnionProxyTest(type: Copy, dependsOn: deleteSourceFiles) {
     into 'src/test/java/com/msopentech/thali/toronionproxy'
 }
 
-task copyTorOnionProxyMain(type: Copy, dependsOn: copyTorOnionProxyTest) {
-    from "../android/src/main/java/com/msopentech/thali/toronionproxy"
-    into 'src/main/java/com/msopentech/thali/toronionproxy'
-}
-
-task copyResources(type: Copy, dependsOn: copyTorOnionProxyMain) {
-    from "../android/src/main/assets/torrc"
-    from "../android/src/main/assets/geoip"
+task copyResources(type: Copy, dependsOn: copyTorOnionProxyTest) {
+    from "../universal/commonResources/torrc"
+    from "../universal/commonResources/geoip"
     into 'src/main/resources'
 }
 
 build.dependsOn(copyResources)
+uploadArchives.dependsOn(copyResources)

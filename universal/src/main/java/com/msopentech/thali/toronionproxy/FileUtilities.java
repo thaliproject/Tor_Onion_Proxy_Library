@@ -95,7 +95,7 @@ public class FileUtilities {
      * Won't close the input stream when it's done, needed to handle ZipInputStreams
      * @param in Won't be closed
      * @param out Will be closed
-     * @throws IOException
+     * @throws java.io.IOException
      */
     public static void copyDontCloseInput(InputStream in, OutputStream out) throws IOException {
         try {
@@ -135,7 +135,7 @@ public class FileUtilities {
      * Reads the input stream, deletes fileToWriteTo if it exists and over writes it with the stream.
      * @param readFrom Stream to read from
      * @param fileToWriteTo File to write to
-     * @throws IOException
+     * @throws java.io.IOException
      */
     public static void cleanInstallOneFile(InputStream readFrom, File fileToWriteTo) throws IOException {
         if (fileToWriteTo.exists() && fileToWriteTo.delete() == false) {
