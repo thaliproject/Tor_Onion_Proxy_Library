@@ -10,11 +10,9 @@ __How__: We are really just a thin Java wrapper around the Tor OP binaries and j
 
 __Who__: This project is being actively developed by Yaron Y. Goland assigned to the Microsoft Open Technologies Hub. We absolutely need your help! Please see the FAQ below if you would like to help!
 
-To use the library clone the repo and run './gradlew build' on either the Android or Java project depending on your needs. The Android project contains an ARM binary. The Java project contains binaries for Linux, Mac and Windows.
+To use the library clone the repo and run first run './gradlew uploadArchives' (make sure you have local maven installed) on Universal. Then run './gradlew build' on either the Android or Java project depending on your needs. The Android project contains an ARM binary. The Java project contains binaries for Linux, Mac and Windows.
 
-The main class of interest is the OnionProxyManager. You can create this on Android using the AndroidOnionProxyManager and in Java using the (no points for guessing) JavaOnionProxyManager. See the OnionProxyManager class for details on supported methods and such.
-
-__NOTE: If you want to find OnionProxyManager via GitHub make sure to go to the Android project! NOT JAVA! See the FAQ for why.__
+The main class of interest is the OnionProxyManager. You can create this on Android using the AndroidOnionProxyManager and in Java using the (no points for guessing) JavaOnionProxyManager. See the OnionProxyManager class in universal for details on supported methods and such.
 
 # Acknowledgements
 A huge thanks to Michael Rogers and the Briar project. This project started by literally copying their code (yes, I asked first) which handled things in Android and then expanding it to deal with Java. We are also using Briar's fork of JTorCtl until their patches are accepted by the Guardian Project.
@@ -24,8 +22,14 @@ Another huge thanks to the Guardian folks for both writing JTorCtl and doing the
 And of course an endless amount of gratitude to the heroes of the Tor project for making this all possible in the first place and for their binaries which we are using for all our supported Java platforms.
 
 # FAQ
-## Why are a bunch of files missing from the Java depot?
-Most of the code is shared between Android and Java. To keep our sanity we keep the 'master' files in the Android project. We then have a set of copy/delete tasks in the Java Gradle that copies things over.
+## What's the relationship between universal, Java and android projects?
+The universal project produces a JAR that contains code that is common to both the Java and Android versions of the project. We need this JAR available separately because we use this code to build other projects that also share code between Java and Android. So universal is very useful because we can include universal into our project's 'common' code project without getting into any Java or Android specific details. 
+
+On top of universal are the java and android projects. They contain code specific to those platforms along with collateral like binaries.
+
+Note however that shared files like the jtorctl-briar, geoip and torrc are kept in Universal and we use a gradle task to copy them into the android and java projects.
+
+One further complication are tests. Hard experience has taught that putting tests into universal doesn't work well because it means we have to write custom wrappers for each test in android and java in order to run them. So instead the tests live primarily in the android project and we use a gradle task to copy them over to the Java project. This lets us share identical tests but it means that all edits to tests have to happen in the android project. Any changes made to shared test code in the java project will be lost. This should not be an issue for anyone but a dev actually working on Tor_Onion_Proxy_Library, to users its irrelevant.
 ## What is the maturity of the code in this project?
 Well the release version is currently 0.0.0 so that should say something. This is an alpha. We have (literally) one test. Obviously we need a heck of a lot more coverage. But we have run that test and it does actually work which means that the Tor OP is being run and is available.
 ## Can I run multiple programs next to each other that use this library?

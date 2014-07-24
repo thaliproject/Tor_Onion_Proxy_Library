@@ -131,7 +131,7 @@ public abstract class OnionProxyManager {
     /**
      * Returns the socks port on the IPv4 localhost address that the Tor OP is listening on
      * @return Discovered socks port
-     * @throws IOException
+     * @throws java.io.IOException
      */
     public synchronized int getIPv4LocalHostSocksPort() throws IOException {
         if (isRunning() == false) {
@@ -206,7 +206,7 @@ public abstract class OnionProxyManager {
     /**
      * Kills the Tor OP Process. Once you have called this method nothing is going to work until you either call
      * startWithRepeat or installAndStartTorOp
-     * @throws IOException
+     * @throws java.io.IOException
      */
     public synchronized void stop() throws IOException {
         try {
@@ -228,7 +228,7 @@ public abstract class OnionProxyManager {
     /**
      * Checks to see if the Tor OP is running (e.g. fully bootstrapped) and open to network connections.
      * @return True if running
-     * @throws IOException
+     * @throws java.io.IOException
      */
     public synchronized boolean isRunning() throws IOException {
         return isBootstrapped() && isNetworkEnabled();
@@ -237,7 +237,7 @@ public abstract class OnionProxyManager {
     /**
      * Tells the Tor OP if it should accept network connections
      * @param enable If true then the Tor OP will accept SOCKS connections, otherwise not.
-     * @throws IOException
+     * @throws java.io.IOException
      */
     public synchronized void enableNetwork(boolean enable) throws IOException {
         if(controlConnection == null) {
@@ -251,7 +251,7 @@ public abstract class OnionProxyManager {
      * Specifies if Tor OP is accepting network connections
      * @return True if network is enabled (that doesn't mean that the device is online, only that the Tor OP is trying
      * to connect to the network)
-     * @throws IOException
+     * @throws java.io.IOException
      */
     public synchronized boolean isNetworkEnabled() throws IOException {
         if (controlConnection == null) {
@@ -301,7 +301,7 @@ public abstract class OnionProxyManager {
      * only be used if you wanted to start the Tor OP so that the install and related is all done but aren't ready to
      * actually connect it to the network.
      * @return True if all files installed and Tor OP successfully started
-     * @throws IOException
+     * @throws java.io.IOException
      */
     public synchronized boolean installAndStartTorOp() throws IOException, InterruptedException {
         // The Tor OP will die if it looses the connection to its socket so if there is no controlSocket defined
