@@ -8,7 +8,7 @@ __Why__: It's sort of a pain to deploy and manage the Tor OP, we want to make it
 
 __How__: We are really just a thin Java wrapper around the Tor OP binaries and jtorctl. 
 
-__Who__: This project is being actively developed by Yaron Y. Goland assigned to the Microsoft Open Technologies Hub. We absolutely need your help! Please see the FAQ below if you would like to help!
+__Who__: This work is part of the [Thali Project](http://www.thaliproject.org/mediawiki/index.php?title=Main_Page) and is being actively developed by Yaron Y. Goland assigned to the Microsoft Open Technologies Hub. We absolutely need your help! Please see the FAQ below if you would like to help!
 
 To use the library clone the repo and run first run './gradlew uploadArchives' (make sure you have local maven installed) on Universal. Then run './gradlew build' on either the Android or Java project depending on your needs. The Android project contains an ARM binary. The Java project contains binaries for Linux, Mac and Windows.
 
