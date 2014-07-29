@@ -152,7 +152,7 @@ public class FileUtilities {
             }
         }
 
-        if (fileOrDirectory.delete() == false) {
+        if (fileOrDirectory.exists() && fileOrDirectory.delete() == false) {
             throw new RuntimeException("Could not delete directory " + fileOrDirectory.getAbsolutePath());
         }
     }
