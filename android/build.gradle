@@ -104,4 +104,4 @@ task copyResources(type: Copy, dependsOn: deleteSourceFiles) {
 }
 
 build.dependsOn(copyResources)
-uploadArchives.dependsOn(copyResources)
+//uploadArchives.dependsOn(copyResources)

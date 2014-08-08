@@ -95,4 +95,4 @@ task copyResources(type: Copy, dependsOn: copyTorOnionProxyTest) {
 }
 
 build.dependsOn(copyResources)
-uploadArchives.dependsOn(copyResources)
+//uploadArchives.dependsOn(copyResources)
