@@ -10,7 +10,14 @@ __How__: We are really just a thin Java wrapper around the Tor OP binaries and j
 
 __Who__: This work is part of the [Thali Project](http://www.thaliproject.org/mediawiki/index.php?title=Main_Page) and is being actively developed by Yaron Y. Goland assigned to the Microsoft Open Technologies Hub. We absolutely need your help! Please see the FAQ below if you would like to help!
 
-To use the library clone the repo and run first run './gradlew uploadArchives' (make sure you have local maven installed) on Universal. Then run './gradlew build' on either the Android or Java project depending on your needs. The Android project contains an ARM binary. The Java project contains binaries for Linux, Mac and Windows.
+To use the library clone the repo and run first run './gradlew uploadArchives' (make sure you have local maven installed) on Universal. Then run './gradlew build' on either the Android or Java project depending on your needs. The Android project contains an ARM binary. The Java project contains binaries for Linux, Mac and Windows. Note that the Java project requires an additional JAR file that you can find in Universal/libs. Alternatively if you use Maven and uploadArchives then we will install the JAR file in maven local and you can just refer to it that way. For example, one of our Java projects has the following in its gradle
+
+```groovy
+    compile 'com.msopentech.thali:ThaliOnionProxyJava:0.0.0'
+    compile 'com.msopentech.thali:BriarJtorctl:0.0.0'
+```
+
+Those using Android don't need to worry about the additional JAR since it gets packaged automatically with the Android AAR.
 
 The main class of interest is the OnionProxyManager. You can create this on Android using the AndroidOnionProxyManager and in Java using the (no points for guessing) JavaOnionProxyManager. See the OnionProxyManager class in universal for details on supported methods and such.
 
