@@ -78,7 +78,6 @@ artifacts {
 
 // Copying content from Android over to Java
 task deleteSourceFiles(type: Delete) {
-    delete 'src/main/java/com/msopentech/thali/toronionproxy'
     delete 'src/main/resources/torrc'
     delete 'src/main/resources/geoip'
 }
@@ -94,5 +93,5 @@ task copyResources(type: Copy, dependsOn: copyTorOnionProxyTest) {
     into 'src/main/resources'
 }
 
-build.dependsOn(copyResources)
+compileJava.dependsOn(copyResources)
 //uploadArchives.dependsOn(copyResources)
