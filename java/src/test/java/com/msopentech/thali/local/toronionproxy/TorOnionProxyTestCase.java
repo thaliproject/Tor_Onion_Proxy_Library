@@ -19,13 +19,21 @@ import com.msopentech.thali.toronionproxy.OnionProxyContext;
 import com.msopentech.thali.toronionproxy.OnionProxyManager;
 import junit.framework.TestCase;
 
-public class TorOnionProxyTestCase extends TestCase {
-    public OnionProxyManager getOnionProxyManager(String workingSubDirectoryName) {
-        return new JavaOnionProxyManager(new JavaOnionProxyContext(workingSubDirectoryName));
-    }
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 
-    public OnionProxyContext getOnionProxyContext(String workingSubDirectoryName) {
-        return new JavaOnionProxyContext(workingSubDirectoryName);
+public class TorOnionProxyTestCase extends TestCase {
+    protected OnionProxyContext testOnionProxyContext = null;
+
+    public OnionProxyManager getOnionProxyManager(String workingSubDirectoryName) {
+        try {
+            return new JavaOnionProxyManager(
+                    new JavaOnionProxyContext(
+                            Files.createTempDirectory(workingSubDirectoryName).toFile()));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public void testTorOnionProxyTestCaseSetupProperly() {

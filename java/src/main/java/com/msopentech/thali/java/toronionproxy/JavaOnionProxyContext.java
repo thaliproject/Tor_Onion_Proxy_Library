@@ -22,8 +22,8 @@ import java.io.InputStream;
 
 public class JavaOnionProxyContext extends OnionProxyContext {
 
-    public JavaOnionProxyContext(String workingSubDirectoryName) {
-        super(new File("OnionProxyJavaTests", workingSubDirectoryName));
+    public JavaOnionProxyContext(File workingDirectory) {
+        super(workingDirectory);
     }
 
     @Override

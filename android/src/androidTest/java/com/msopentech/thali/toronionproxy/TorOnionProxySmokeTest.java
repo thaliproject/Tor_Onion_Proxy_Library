@@ -94,12 +94,12 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         String clientManagerDirectoryName = "clientmanager";
         OnionProxyManager hiddenServiceManager = null, clientManager = null;
         try {
-            deleteTorWorkingDirectory(hiddenServiceManagerDirectoryName);
             hiddenServiceManager = getOnionProxyManager(hiddenServiceManagerDirectoryName);
+            deleteTorWorkingDirectory(hiddenServiceManager.getWorkingDirectory());
             assertTrue(hiddenServiceManager.startWithRepeat(30, 5));
 
-            deleteTorWorkingDirectory(clientManagerDirectoryName);
             clientManager = getOnionProxyManager(clientManagerDirectoryName);
+            deleteTorWorkingDirectory(clientManager.getWorkingDirectory());
             assertTrue(clientManager.startWithRepeat(30, 5));
 
             String onionAddress = runHiddenServiceTest(hiddenServiceManager, clientManager);
@@ -215,9 +215,7 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         return countDownLatch;
     }
 
-    private void deleteTorWorkingDirectory(String workingSubDirectoryName) {
-        OnionProxyContext onionProxyContext = getOnionProxyContext(workingSubDirectoryName);
-        File torWorkingDirectory = onionProxyContext.getWorkingDirectory();
+    private void deleteTorWorkingDirectory(File torWorkingDirectory) {
         FileUtilities.recursiveFileDelete(torWorkingDirectory);
         if (torWorkingDirectory.mkdirs() == false) {
             throw new RuntimeException("couldn't create Tor Working Directory after deleting it.");

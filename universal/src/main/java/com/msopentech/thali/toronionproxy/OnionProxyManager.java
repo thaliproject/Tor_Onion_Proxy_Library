@@ -404,6 +404,15 @@ public abstract class OnionProxyManager {
         }
     }
 
+    /**
+     * Returns the root directory in which the Tor Onion Proxy keeps its files. This is mostly intended
+     * for debugging purposes.
+     * @return Working directory for Tor Onion Proxy files
+     */
+    public File getWorkingDirectory() {
+        return onionProxyContext.getWorkingDirectory();
+    }
+
     protected void eatStream(final InputStream inputStream, final boolean stdError, final CountDownLatch countDownLatch) {
         new Thread() {
             @Override
