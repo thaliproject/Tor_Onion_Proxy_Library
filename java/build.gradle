@@ -38,9 +38,26 @@ uploadArchives {
                 authentication(userName: System.getProperty('MAVEN_UPLOAD_USERNAME'), password: System.getProperty('MAVEN_UPLOAD_PASSWORD')) 
             }
 
-            pom.version = System.getProperty('MAVEN_UPLOAD_VERSION')
-            pom.groupId = 'com.msopentech.thali'
-            pom.artifactId = 'ThaliOnionProxyJava'
+            addFilter('briarjtorctl') {artifact, file ->
+                artifact.name == 'briarjtorctl'
+            }
+
+            addFilter('thalionionproxy') {artifact, file ->
+                artifact.name != 'briarjtorctl'
+            }
+
+            pom('thalionionproxy') {
+                version = System.getProperty('MAVEN_UPLOAD_VERSION')
+                groupId = 'com.msopentech.thali'
+                artifactId = 'ThaliOnionProxyJava'
+            }
+
+            pom('briarjtorctl') {
+                version = System.getProperty('MAVEN_UPLOAD_VERSION')
+                groupId = 'com.msopentech.thali'
+                artifactId = 'BriarJtorctl'
+            }
+
             pom.project {
                 licenses {
                     license {
@@ -67,12 +84,11 @@ task generateJavadocs(type: Jar, dependsOn: javadoc) {
 artifacts {
     archives sourcesJar
     archives generateJavadocs
+    archives file: file('../universal/libs/jtorctl-briar.jar'), name: 'briarjtorctl', type: 'jar'
 }
-
 
 // Copying content from Android over to Java
 task deleteSourceFiles(type: Delete) {
-    delete 'src/main/java/com/msopentech/thali/toronionproxy'
     delete 'src/main/resources/torrc'
     delete 'src/main/resources/geoip'
 }
@@ -88,4 +104,5 @@ task copyResources(type: Copy, dependsOn: copyTorOnionProxyTest) {
     into 'src/main/resources'
 }
 
-compileJava.dependsOn(copyResources)
+classes.dependsOn(copyResources)
+testClasses.dependsOn(copyResources)
