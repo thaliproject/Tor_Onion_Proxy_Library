@@ -23,8 +23,4 @@ public class TorOnionProxyTestCase extends AndroidTestCase {
     public OnionProxyManager getOnionProxyManager(String workingSubDirectoryName) {
         return new AndroidOnionProxyManager(getContext(), workingSubDirectoryName);
     }
-
-    public OnionProxyContext getOnionProxyContext(String workingSubDirectoryName) {
-        return new AndroidOnionProxyContext(getContext(), workingSubDirectoryName);
-    }
 }

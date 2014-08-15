@@ -30,20 +30,14 @@ dependencies {
     testCompile 'org.slf4j:slf4j-simple:1.7.7'
 }
 
-def mavenPath() {
-    artifactory_local == "true" ?
-            'file://' + new File(System.getProperty('user.home'), '.m2/repository').absolutePath :
-            artifactory_contextUrl + "/libs-release-local"
-}
-
 uploadArchives {
     repositories {
         mavenDeployer {
-            repository(url: mavenPath()) {
-                authentication(userName: "${artifactory_user}", password: "${artifactory_password}")
+            repository(url: System.getProperty('MAVEN_UPLOAD_REPO_URL')) {
+                authentication(userName: System.getProperty('MAVEN_UPLOAD_USERNAME'), password: System.getProperty('MAVEN_UPLOAD_PASSWORD'))
             }
 
-            pom.version = "0.0.0"
+            pom.version = System.getProperty('MAVEN_UPLOAD_VERSION')
             pom.groupId = 'com.msopentech.thali'
             pom.artifactId = 'ThaliOnionProxyUniversal'
             pom.project {
