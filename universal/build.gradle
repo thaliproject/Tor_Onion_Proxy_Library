@@ -16,7 +16,10 @@ apply plugin: 'maven'
 
 sourceCompatibility = 1.6
 
-
+version = System.getProperty('MAVEN_UPLOAD_VERSION')
+group = 'com.msopentech.thali'
+archivesBaseName = 'ThaliOnionProxyUniversal'
+ 
 repositories {
     mavenLocal()
     mavenCentral()
@@ -37,9 +40,6 @@ uploadArchives {
                 authentication(userName: System.getProperty('MAVEN_UPLOAD_USERNAME'), password: System.getProperty('MAVEN_UPLOAD_PASSWORD')) 
             }
 
-            pom.version = System.getProperty('MAVEN_UPLOAD_VERSION')
-            pom.groupId = 'com.msopentech.thali'
-            pom.artifactId = 'ThaliOnionProxyUniversal'
             pom.project {
                 licenses {
                     license {
@@ -60,7 +60,7 @@ task sourcesJar(type: Jar, dependsOn: classes) {
 
 task generateJavadocs(type: Jar, dependsOn: javadoc) {
     classifier = 'javadoc'
-    source = sourceSets.main.java.srcDirs
+    from javadoc.destinationDir
 }
 
 artifacts {
