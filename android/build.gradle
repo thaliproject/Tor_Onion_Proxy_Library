@@ -31,6 +31,8 @@ archivesBaseName = 'ThaliOnionProxyAndroid'
 repositories {
     mavenLocal()
     mavenCentral()
+    maven { url "http://thaliartifactory.cloudapp.net/artifactory/libs-snapshot" }
+    maven { url "http://thaliartifactory.cloudapp.net/artifactory/libs-release" }
 }
 
 android {

@@ -16,16 +16,20 @@ apply plugin: 'maven'
 
 sourceCompatibility = 1.6
 
+version = System.getProperty('MAVEN_UPLOAD_VERSION')
+group = 'com.msopentech.thali'
 
 repositories {
     mavenLocal()
     mavenCentral()
+    maven { url "http://thaliartifactory.cloudapp.net/artifactory/libs-snapshot" }
+    maven { url "http://thaliartifactory.cloudapp.net/artifactory/libs-release" }
 }
 
 dependencies {
     compile fileTree(dir: '../universal/libs', include: '*.jar')
     compile 'org.slf4j:slf4j-api:1.7.7'
-    compile 'com.msopentech.thali:ThaliOnionProxyUniversal:' + System.getProperty('MAVEN_UPLOAD_VERSION')
+    compile 'com.msopentech.thali:ThaliOnionProxyUniversal:' + System.getProperty('MAVEN_UPLOAD_VERSION') 
 
     testCompile 'junit:junit:4.11'
     testCompile 'org.slf4j:slf4j-simple:1.7.7'
@@ -42,19 +46,15 @@ uploadArchives {
                 artifact.name == 'briarjtorctl'
             }
 
-            addFilter('thalionionproxy') {artifact, file ->
-                artifact.name != 'briarjtorctl'
+            addFilter('java') {artifact, file ->
+                artifact.name == 'java'
             }
 
-            pom('thalionionproxy') {
-                version = System.getProperty('MAVEN_UPLOAD_VERSION')
-                groupId = 'com.msopentech.thali'
+            pom('java') {
                 artifactId = 'ThaliOnionProxyJava'
             }
 
             pom('briarjtorctl') {
-                version = System.getProperty('MAVEN_UPLOAD_VERSION')
-                groupId = 'com.msopentech.thali'
                 artifactId = 'BriarJtorctl'
             }
 
@@ -70,6 +70,37 @@ uploadArchives {
         }
     }
 }
+
+install {
+    repositories.mavenInstaller {
+        addFilter('briarjtorctl') {artifact, file ->
+            artifact.name == 'briarjtorctl'
+        }
+
+        addFilter('java') {artifact, file ->
+            artifact.name == 'java'
+        }
+
+        pom('java') {
+            artifactId = 'ThaliOnionProxyJava'
+        }
+
+        pom('briarjtorctl') {
+            artifactId = 'BriarJtorctl'
+        }
+
+        pom.project {
+            licenses {
+                license {
+                name 'Apache 2.0'
+                    url 'https://thali.codeplex.com/SourceControl/latest#license.txt'
+                    distribution 'repo'
+                }
+            }
+        }
+    }
+}
+
 
 task sourcesJar(type: Jar, dependsOn: classes) {
     classifier = 'sources'
