@@ -17,14 +17,22 @@ buildscript {
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:0.10.+'
+        classpath 'com.github.dcendents:android-maven-plugin:1.1'
     }
 }
+
 apply plugin: 'android-library'
-apply plugin: 'maven'
+apply plugin: 'android-maven'
+
+version = System.getProperty('MAVEN_UPLOAD_VERSION')
+group = 'com.msopentech.thali'
+archivesBaseName = 'ThaliOnionProxyAndroid'
 
 repositories {
     mavenLocal()
     mavenCentral()
+    maven { url "http://thaliartifactory.cloudapp.net/artifactory/libs-snapshot" }
+    maven { url "http://thaliartifactory.cloudapp.net/artifactory/libs-release" }
 }
 
 android {
@@ -58,12 +66,9 @@ uploadArchives {
     repositories {
         mavenDeployer {
             repository(url: System.getProperty('MAVEN_UPLOAD_REPO_URL')) {
-                authentication(userName: System.getProperty('MAVEN_UPLOAD_USERNAME'), password: System.getProperty('MAVEN_UPLOAD_PASSWORD'))
+                authentication(userName: System.getProperty('MAVEN_UPLOAD_USERNAME'), password: System.getProperty('MAVEN_UPLOAD_PASSWORD')) 
             }
 
-            pom.version = System.getProperty('MAVEN_UPLOAD_VERSION')
-            pom.groupId = 'com.msopentech.thali'
-            pom.artifactId = 'ThaliOnionProxyAndroid'
             pom.project {
                 licenses {
                     license {
@@ -98,4 +103,3 @@ task copyResources(type: Copy, dependsOn: deleteSourceFiles) {
 }
 
 build.dependsOn(copyResources)
-//uploadArchives.dependsOn(copyResources)
