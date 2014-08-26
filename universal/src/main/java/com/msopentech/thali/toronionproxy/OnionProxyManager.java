@@ -467,6 +467,7 @@ public abstract class OnionProxyManager {
             // to be in the data directory so we need to set both
             printWriter.println("DataDirectory " + onionProxyContext.getWorkingDirectory().getAbsolutePath());
             printWriter.println("GeoIPFile " + onionProxyContext.getGeoIpFile().getName());
+            printWriter.println("GeoIPv6File " + onionProxyContext.getGeoIpv6File().getName());
         } finally {
             if (printWriter != null) {
                 printWriter.close();
