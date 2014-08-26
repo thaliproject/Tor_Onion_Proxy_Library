@@ -24,8 +24,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 
 public class TorOnionProxyTestCase extends TestCase {
-    protected OnionProxyContext testOnionProxyContext = null;
-
     public OnionProxyManager getOnionProxyManager(String workingSubDirectoryName) {
         try {
             return new JavaOnionProxyManager(

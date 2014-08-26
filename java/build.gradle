@@ -101,6 +101,7 @@ install {
     }
 }
 
+test.testLogging.showStandardStreams = true;
 
 task sourcesJar(type: Jar, dependsOn: classes) {
     classifier = 'sources'
@@ -123,6 +124,7 @@ artifacts {
 task deleteSourceFiles(type: Delete) {
     delete 'src/main/resources/torrc'
     delete 'src/main/resources/geoip'
+    delete 'src/main/resources/geoip6'
 }
 
 task copyTorOnionProxyTest(type: Copy, dependsOn: deleteSourceFiles) {
@@ -133,6 +135,7 @@ task copyTorOnionProxyTest(type: Copy, dependsOn: deleteSourceFiles) {
 task copyResources(type: Copy, dependsOn: copyTorOnionProxyTest) {
     from "../universal/commonResources/torrc"
     from "../universal/commonResources/geoip"
+    from "../universal/commonResources/geoip6"
     into 'src/main/resources'
 }
 

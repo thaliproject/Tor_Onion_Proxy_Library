@@ -74,13 +74,15 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.net.*;
 import java.util.Calendar;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
 public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
     private static final int CONNECT_TIMEOUT_MILLISECONDS = 60000;
     private static final int READ_TIMEOUT_MILLISECONDS = 60000;
-    private static final int TOTAL_MINUTES_FOR_TEST_TO_RUN = 3;
+    private static final int TOTAL_SECONDS_PER_TOR_STARTUP = 4 * 60;
+    private static final int TOTAL_TRIES_PER_TOR_STARTUP = 5;
+    private static final int WAIT_FOR_HIDDEN_SERVICE_MINUTES = 3;
     private static final Logger LOG = LoggerFactory.getLogger(TorOnionProxySmokeTest.class);
 
     /**
@@ -96,18 +98,24 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         try {
             hiddenServiceManager = getOnionProxyManager(hiddenServiceManagerDirectoryName);
             deleteTorWorkingDirectory(hiddenServiceManager.getWorkingDirectory());
-            assertTrue(hiddenServiceManager.startWithRepeat(30, 5));
+            assertTrue(hiddenServiceManager.startWithRepeat(TOTAL_SECONDS_PER_TOR_STARTUP, TOTAL_TRIES_PER_TOR_STARTUP));
+
+            LOG.warn("Hidden Service Manager is running.");
 
             clientManager = getOnionProxyManager(clientManagerDirectoryName);
             deleteTorWorkingDirectory(clientManager.getWorkingDirectory());
-            assertTrue(clientManager.startWithRepeat(30, 5));
+            assertTrue(clientManager.startWithRepeat(TOTAL_SECONDS_PER_TOR_STARTUP, TOTAL_TRIES_PER_TOR_STARTUP));
+
+            LOG.warn("Client Manager is running.");
 
             String onionAddress = runHiddenServiceTest(hiddenServiceManager, clientManager);
+
+            LOG.warn("We successfully sent a message from client manager to hidden service manager!");
 
             // Now take down the hidden service manager and bring it back up with a new descriptor but the
             // same address
             hiddenServiceManager.stop();
-            hiddenServiceManager.startWithRepeat(30, 5);
+            hiddenServiceManager.startWithRepeat(TOTAL_SECONDS_PER_TOR_STARTUP, TOTAL_TRIES_PER_TOR_STARTUP);
             // It's possible that one of our deletes could have nuked the hidden service directory
             // in which case we would actually be testing against a new hidden service which would
             // remove the point of this test. So we check that they are the same.
@@ -122,6 +130,8 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         }
     }
 
+    public enum ServerState { success, timedout, othererror }
+
     private String runHiddenServiceTest(OnionProxyManager hiddenServiceManager, OnionProxyManager clientManager)
             throws IOException, InterruptedException {
         int localPort = 9343;
@@ -131,16 +141,32 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
 
         byte[] testBytes = new byte[] { 0x01, 0x02, 0x03, 0x05};
 
-        CountDownLatch countDownLatch = receiveExpectedBytes(testBytes, localPort);
+        long timeToExit = Calendar.getInstance().getTimeInMillis() + WAIT_FOR_HIDDEN_SERVICE_MINUTES * 60 * 1000;
+        while(Calendar.getInstance().getTimeInMillis() < timeToExit) {
+            SynchronousQueue<ServerState> serverQueue = new SynchronousQueue<ServerState>();
+            Thread serverThread = receiveExpectedBytes(testBytes, localPort, serverQueue);
 
-        Socket clientSocket =
-                getClientSocket(onionAddress, hiddenServicePort, clientManager.getIPv4LocalHostSocksPort());
+            Socket clientSocket =
+                    getClientSocket(onionAddress, hiddenServicePort, clientManager.getIPv4LocalHostSocksPort());
 
-        DataOutputStream clientOutputStream = new DataOutputStream(clientSocket.getOutputStream());
-        clientOutputStream.write(testBytes);
-        clientOutputStream.flush();
-        assertTrue(countDownLatch.await(TOTAL_MINUTES_FOR_TEST_TO_RUN, TimeUnit.MINUTES));
-        return onionAddress;
+            DataOutputStream clientOutputStream = new DataOutputStream(clientSocket.getOutputStream());
+            clientOutputStream.write(testBytes);
+            clientOutputStream.flush();
+            ServerState serverState = serverQueue.poll(WAIT_FOR_HIDDEN_SERVICE_MINUTES, TimeUnit.MINUTES);
+            if (serverState == ServerState.success) {
+                return onionAddress;
+            } else {
+                long timeForThreadToExit = Calendar.getInstance().getTimeInMillis() + 1000;
+                while(Calendar.getInstance().getTimeInMillis() < timeForThreadToExit &&
+                        serverThread.getState() != Thread.State.TERMINATED) {
+                    Thread.sleep(1000,0);
+                }
+                if (serverThread.getState() != Thread.State.TERMINATED) {
+                    throw new RuntimeException("Server thread doesn't want to terminate and free up our port!");
+                }
+            }
+        }
+        throw new RuntimeException("Test timed out!");
     }
 
     /**
@@ -152,11 +178,13 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
      */
     private Socket getClientSocket(String onionAddress, int hiddenServicePort, int socksPort)
             throws InterruptedException {
-        long timeToExit = Calendar.getInstance().getTimeInMillis() + TOTAL_MINUTES_FOR_TEST_TO_RUN*60*1000;
+        long timeToExit = Calendar.getInstance().getTimeInMillis() + WAIT_FOR_HIDDEN_SERVICE_MINUTES *60*1000;
         Socket clientSocket = null;
         while (Calendar.getInstance().getTimeInMillis() < timeToExit && clientSocket == null) {
             try {
                 clientSocket = socks4aSocketConnection(onionAddress, hiddenServicePort, "127.0.0.1", socksPort);
+                clientSocket.setTcpNoDelay(true);
+                LOG.info("We connected via the clientSocket to try and talk to the hidden service.");
             } catch (IOException e) {
                 LOG.error("attempt to set clientSocket failed, will retry", e);
                     Thread.sleep(5000, 0);
@@ -170,29 +198,46 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         return clientSocket;
     }
 
-    private CountDownLatch receiveExpectedBytes(final byte[] expectedBytes, int localPort) throws IOException {
+    private Thread receiveExpectedBytes(final byte[] expectedBytes, int localPort,
+                                                final SynchronousQueue<ServerState> serverQueue) throws IOException {
         final ServerSocket serverSocket = new ServerSocket(localPort);
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
 
-        new Thread(new Runnable() {
+        Thread thread = new Thread(new Runnable() {
             public void run() {
                 Socket receivedSocket = null;
                 try {
                     receivedSocket = serverSocket.accept();
+                    // Yes, setTcpNoDelay is useless because we are just reading but I'm being paranoid
+                    receivedSocket.setTcpNoDelay(true);
+                    receivedSocket.setSoTimeout(10*1000);
                     LOG.info("Received incoming connection");
                     DataInputStream dataInputStream = new DataInputStream(receivedSocket.getInputStream());
                     for(byte nextByte : expectedBytes) {
                         byte receivedByte = dataInputStream.readByte();
                         if (nextByte != receivedByte) {
                             LOG.error("Received " + receivedByte + ", but expected " + nextByte);
+                            serverQueue.put(ServerState.othererror);
                             return;
                         } else {
                             LOG.info("Received " + receivedByte);
                         }
                     }
-                    countDownLatch.countDown();
+                    LOG.info("All Bytes Successfully Received!");
+                    serverQueue.put(ServerState.success);
                 } catch(IOException e) {
+                    LOG.warn("We got an io exception waiting for the server bytes, this really shouldn't happen, but does.", e);
+                    try {
+                        serverQueue.put(ServerState.timedout);
+                    } catch (InterruptedException e1) {
+                        LOG.error("We couldn't send notice that we had a server time out! EEEK!");
+                    }
+                } catch (InterruptedException e) {
                     LOG.error("Test Failed", e);
+                    try {
+                        serverQueue.put(ServerState.othererror);
+                    } catch (InterruptedException e1) {
+                        LOG.error("We got an InterruptedException and couldn't tell the server queue about it!", e1);
+                    }
                 } finally {
                     // I suddenly am getting IncompatibleClassChangeError: interface no implemented when
                     // calling these functions. I saw a random Internet claim (therefore it must be true!)
@@ -210,9 +255,9 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
                     }
                 }
             }
-        }).start();
-
-        return countDownLatch;
+        });
+        thread.start();
+        return thread;
     }
 
     private void deleteTorWorkingDirectory(File torWorkingDirectory) {

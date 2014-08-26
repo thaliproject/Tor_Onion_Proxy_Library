@@ -26,9 +26,11 @@ import java.util.List;
 abstract public class OnionProxyContext {
     protected final static String hiddenserviceDirectoryName = "hiddenservice";
     protected final static String geoIpName = "geoip";
+    protected final static String geoIpv6Name = "geoip6";
     protected final static String torrcName = "torrc";
     protected final File workingDirectory;
     protected final File geoIpFile;
+    protected final File geoIpv6File;
     protected final File torrcFile;
     protected final File torExecutableFile;
     protected final File cookieFile;
@@ -37,6 +39,7 @@ abstract public class OnionProxyContext {
     public OnionProxyContext(File workingDirectory) {
         this.workingDirectory = workingDirectory;
         geoIpFile = new File(getWorkingDirectory(), geoIpName);
+        geoIpv6File = new File(getWorkingDirectory(), geoIpv6Name);
         torrcFile = new File(getWorkingDirectory(), torrcName);
         torExecutableFile = new File(getWorkingDirectory(), getTorExecutableFileName());
         cookieFile = new File(getWorkingDirectory(), ".tor/control_auth_cookie");
@@ -54,6 +57,7 @@ abstract public class OnionProxyContext {
         }
 
         FileUtilities.cleanInstallOneFile(getAssetOrResourceByName(geoIpName), geoIpFile);
+        FileUtilities.cleanInstallOneFile(getAssetOrResourceByName(geoIpv6Name), geoIpv6File);
         FileUtilities.cleanInstallOneFile(getAssetOrResourceByName(torrcName), torrcFile);
 
         switch(OsData.getOsType()) {
@@ -92,6 +96,10 @@ abstract public class OnionProxyContext {
 
     public File getGeoIpFile() {
         return geoIpFile;
+    }
+
+    public File getGeoIpv6File() {
+        return geoIpv6File;
     }
 
     public File getTorrcFile() {

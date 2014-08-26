@@ -93,13 +93,17 @@ artifacts {
 
 task deleteSourceFiles(type: Delete) {
     delete 'src/main/assets/geoip'
+    delete 'src/main/assets/geoip6'
     delete 'src/main/assets/torrc'
 }
 
 task copyResources(type: Copy, dependsOn: deleteSourceFiles) {
     from "../universal/commonResources/torrc"
     from "../universal/commonResources/geoip"
+    from "../universal/commonResources/geoip6"
     into 'src/main/assets'
 }
 
-build.dependsOn(copyResources)
+// I tried to depend on assemble directly and when I would run debug tests the dependency didn't work right
+preBuild.dependsOn(copyResources)
+

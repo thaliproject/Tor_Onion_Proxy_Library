@@ -57,11 +57,6 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
     public AndroidOnionProxyManager(Context context, String workingSubDirectoryName) {
         super(new AndroidOnionProxyContext(context, workingSubDirectoryName));
         this.context = context;
-
-        // Register to receive network status events
-        networkStateReceiver = new NetworkStateReceiver();
-        IntentFilter filter = new IntentFilter(CONNECTIVITY_ACTION);
-        context.registerReceiver(networkStateReceiver, filter);
     }
 
     @Override
@@ -82,7 +77,16 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
             super.stop();
         } finally {
             if (networkStateReceiver != null) {
-                context.unregisterReceiver(networkStateReceiver);
+                try {
+                    if (networkStateReceiver != null) {
+                        context.unregisterReceiver(networkStateReceiver);
+                    }
+                } catch(IllegalArgumentException e) {
+                    // There is a race condition where if someone calls stop before installAndStartTorOp is done
+                    // then we could get an exception because the network state receiver might not be properly
+                    // registered.
+                    LOG.info("Someone tried to call stop before we had finished registering the receiver", e);
+                }
             }
         }
     }
