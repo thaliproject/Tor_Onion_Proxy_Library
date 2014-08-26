@@ -11,6 +11,7 @@ __How__: We are really just a thin Java wrapper around the Tor OP binaries and j
 __Who__: This work is part of the [Thali Project](http://www.thaliproject.org/mediawiki/index.php?title=Main_Page) and is being actively developed by Yaron Y. Goland assigned to the Microsoft Open Technologies Hub. We absolutely need your help! Please see the FAQ below if you would like to help!
 
 To use the library:
+
 1. Install local Maven
 2. Clone the repo.
 3. In your gradle.properties file (I usually keep mine in the .gradle sub-directory of my home directory, gradle knows to look there) put in the following properties:
