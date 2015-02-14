@@ -16,7 +16,7 @@ apply plugin: 'maven'
 
 sourceCompatibility = 1.6
 
-version = System.getProperty('MAVEN_UPLOAD_VERSION')
+version = "0.0.2"
 group = 'com.msopentech.thali'
 archivesBaseName = 'ThaliOnionProxyUniversal'
  
@@ -31,26 +31,6 @@ dependencies {
 
     testCompile 'junit:junit:4.11'
     testCompile 'org.slf4j:slf4j-simple:1.7.7'
-}
-
-uploadArchives {
-    repositories {
-        mavenDeployer {
-            repository(url: System.getProperty('MAVEN_UPLOAD_REPO_URL')) {
-                authentication(userName: System.getProperty('MAVEN_UPLOAD_USERNAME'), password: System.getProperty('MAVEN_UPLOAD_PASSWORD')) 
-            }
-
-            pom.project {
-                licenses {
-                    license {
-                        name 'Apache 2.0'
-                        url 'https://thali.codeplex.com/SourceControl/latest#license.txt'
-                        distribution 'repo'
-                    }
-                }
-            }
-        }
-    }
 }
 
 task sourcesJar(type: Jar, dependsOn: classes) {

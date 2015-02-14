@@ -78,8 +78,6 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
 public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
-    private static final int CONNECT_TIMEOUT_MILLISECONDS = 60000;
-    private static final int READ_TIMEOUT_MILLISECONDS = 60000;
     private static final int TOTAL_SECONDS_PER_TOR_STARTUP = 4 * 60;
     private static final int TOTAL_TRIES_PER_TOR_STARTUP = 5;
     private static final int WAIT_FOR_HIDDEN_SERVICE_MINUTES = 3;
@@ -97,6 +95,9 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         OnionProxyManager hiddenServiceManager = null, clientManager = null;
         try {
             hiddenServiceManager = getOnionProxyManager(hiddenServiceManagerDirectoryName);
+            // Note: Normally you never want to call anything like deleteTorWorkingDirectory since this
+            // is where all the cached data about the Tor network is kept and it makes connectivity
+            // must faster. We are deleting it here just to make sure we are running clean tests.
             deleteTorWorkingDirectory(hiddenServiceManager.getWorkingDirectory());
             assertTrue(hiddenServiceManager.startWithRepeat(TOTAL_SECONDS_PER_TOR_STARTUP, TOTAL_TRIES_PER_TOR_STARTUP));
 
@@ -182,7 +183,7 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         Socket clientSocket = null;
         while (Calendar.getInstance().getTimeInMillis() < timeToExit && clientSocket == null) {
             try {
-                clientSocket = socks4aSocketConnection(onionAddress, hiddenServicePort, "127.0.0.1", socksPort);
+                clientSocket = Utilities.socks4aSocketConnection(onionAddress, hiddenServicePort, "127.0.0.1", socksPort);
                 clientSocket.setTcpNoDelay(true);
                 LOG.info("We connected via the clientSocket to try and talk to the hidden service.");
             } catch (IOException e) {
@@ -265,54 +266,5 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         if (torWorkingDirectory.mkdirs() == false) {
             throw new RuntimeException("couldn't create Tor Working Directory after deleting it.");
         }
-    }
-
-    private Socket socks4aSocketConnection(String networkHost, int networkPort, String socksHost, int socksPort)
-            throws IOException {
-        // Perform explicit SOCKS4a connection request. SOCKS4a supports remote host name resolution
-        // (i.e., Tor resolves the hostname, which may be an onion address).
-        // The Android (Apache Harmony) Socket class appears to support only SOCKS4 and throws an
-        // exception on an address created using INetAddress.createUnresolved() -- so the typical
-        // technique for using Java SOCKS4a/5 doesn't appear to work on Android:
-        // https://android.googlesource.com/platform/libcore/+/master/luni/src/main/java/java/net/PlainSocketImpl.java
-        // See also: http://www.mit.edu/~foley/TinFoil/src/tinfoil/TorLib.java, for a similar implementation
-
-        // From http://en.wikipedia.org/wiki/SOCKS#SOCKS4a:
-        //
-        // field 1: SOCKS version number, 1 byte, must be 0x04 for this version
-        // field 2: command code, 1 byte:
-        //     0x01 = establish a TCP/IP stream connection
-        //     0x02 = establish a TCP/IP port binding
-        // field 3: network byte order port number, 2 bytes
-        // field 4: deliberate invalid IP address, 4 bytes, first three must be 0x00 and the last one must not be 0x00
-        // field 5: the user ID string, variable length, terminated with a null (0x00)
-        // field 6: the domain name of the host we want to contact, variable length, terminated with a null (0x00)
-
-        Socket socket = new Socket();
-        socket.setSoTimeout(READ_TIMEOUT_MILLISECONDS);
-        SocketAddress socksAddress = new InetSocketAddress(socksHost, socksPort);
-        socket.connect(socksAddress, CONNECT_TIMEOUT_MILLISECONDS);
-
-        DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
-        outputStream.write((byte)0x04);
-        outputStream.write((byte)0x01);
-        outputStream.writeShort((short)networkPort);
-        outputStream.writeInt(0x01);
-        outputStream.write((byte)0x00);
-        outputStream.write(networkHost.getBytes());
-        outputStream.write((byte)0x00);
-
-        DataInputStream inputStream = new DataInputStream(socket.getInputStream());
-        byte firstByte = inputStream.readByte();
-        byte secondByte = inputStream.readByte();
-        if (firstByte != (byte)0x00 || secondByte != (byte)0x5a) {
-            socket.close();
-            throw new IOException("SOCKS4a connect failed, got " + firstByte + " - " + secondByte +
-                    ", but expected 0x00 - 0x5a");
-        }
-        LOG.info("We got a socket!");
-        inputStream.readShort();
-        inputStream.readInt();
-        return socket;
     }
 }

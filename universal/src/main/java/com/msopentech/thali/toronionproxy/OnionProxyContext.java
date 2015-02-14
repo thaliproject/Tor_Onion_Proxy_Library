@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This class encapsulates data that is handled differently in Java and Android as well
@@ -62,11 +63,11 @@ abstract public class OnionProxyContext {
 
         switch(OsData.getOsType()) {
             case Android:
-            case Windows:
                 FileUtilities.cleanInstallOneFile(
                         getAssetOrResourceByName(getPathToTorExecutable() + getTorExecutableFileName()),
                         torExecutableFile);
                 break;
+            case Windows:
             case Linux32:
             case Linux64:
             case Mac:
@@ -75,6 +76,26 @@ abstract public class OnionProxyContext {
                 break;
             default:
                 throw new RuntimeException("We don't support Tor on this OS yet");
+        }
+    }
+
+    /**
+     * Sets environment variables and working directory needed for Tor
+     * @param processBuilder we will call start on this to run Tor
+     */
+    public void setEnvironmentArgsAndWorkingDirectoryForStart(ProcessBuilder processBuilder) {
+        processBuilder.directory(getWorkingDirectory());
+        Map<String, String> environment = processBuilder.environment();
+        environment.put("HOME", getWorkingDirectory().getAbsolutePath());
+        switch (OsData.getOsType()) {
+            case Linux32:
+            case Linux64:
+                // We have to provide the LD_LIBRARY_PATH because when looking for dynamic libraries
+                // Linux apparently will not look in the current directory by default. By setting this
+                // environment variable we fix that.
+                environment.put("LD_LIBRARY_PATH", getWorkingDirectory().getAbsolutePath());
+            default:
+                break;
         }
     }
 

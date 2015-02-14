@@ -26,5 +26,5 @@ public interface WriteObserver {
      * @param unit Unit to wait in
      * @return True if file was modified, false if it was not
      */
-    public abstract boolean poll(long timeout, TimeUnit unit);
+    boolean poll(long timeout, TimeUnit unit);
 }
