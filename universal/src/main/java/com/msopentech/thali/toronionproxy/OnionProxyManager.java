@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.net.Socket;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.CountDownLatch;
@@ -78,13 +79,15 @@ public abstract class OnionProxyManager {
 
     /**
      * This is a blocking call that will try to start the Tor OP, connect it to the network and get it to be fully
-     * boostrapped. Sometimes the bootstrap process just hangs for no apparent reason so the method will wait for the
+     * bootstrapped. Sometimes the bootstrap process just hangs for no apparent reason so the method will wait for the
      * given time for bootstrap to finish and if it doesn't then will restart the bootstrap process the given number of
      * repeats.
      * @param secondsBeforeTimeOut Seconds to wait for boot strapping to finish
      * @param numberOfRetries Number of times to try recycling the Tor OP before giving up on bootstrapping working
      * @return True if bootstrap succeeded, false if there is a problem or the bootstrap couldn't complete in the given
      * time.
+     * @throws java.lang.InterruptedException - You know, if we are interrupted
+     * @throws java.io.IOException - IO Exceptions
      */
     public synchronized boolean startWithRepeat(int secondsBeforeTimeOut, int numberOfRetries) throws
             InterruptedException, IOException {
@@ -131,7 +134,7 @@ public abstract class OnionProxyManager {
     /**
      * Returns the socks port on the IPv4 localhost address that the Tor OP is listening on
      * @return Discovered socks port
-     * @throws java.io.IOException
+     * @throws java.io.IOException - File errors
      */
     public synchronized int getIPv4LocalHostSocksPort() throws IOException {
         if (isRunning() == false) {
@@ -156,6 +159,7 @@ public abstract class OnionProxyManager {
      * @param hiddenServicePort The port that the hidden service will accept connections on
      * @param localPort The local port that the hidden service will relay connections to
      * @return The hidden service's onion address in the form X.onion.
+     * @throws java.io.IOException - File errors
      */
     public synchronized String publishHiddenService(int hiddenServicePort, int localPort) throws IOException {
         if(controlConnection == null) {
@@ -206,7 +210,7 @@ public abstract class OnionProxyManager {
     /**
      * Kills the Tor OP Process. Once you have called this method nothing is going to work until you either call
      * startWithRepeat or installAndStartTorOp
-     * @throws java.io.IOException
+     * @throws java.io.IOException - File errors
      */
     public synchronized void stop() throws IOException {
         try {
@@ -228,7 +232,7 @@ public abstract class OnionProxyManager {
     /**
      * Checks to see if the Tor OP is running (e.g. fully bootstrapped) and open to network connections.
      * @return True if running
-     * @throws java.io.IOException
+     * @throws java.io.IOException - IO exceptions
      */
     public synchronized boolean isRunning() throws IOException {
         return isBootstrapped() && isNetworkEnabled();
@@ -237,7 +241,7 @@ public abstract class OnionProxyManager {
     /**
      * Tells the Tor OP if it should accept network connections
      * @param enable If true then the Tor OP will accept SOCKS connections, otherwise not.
-     * @throws java.io.IOException
+     * @throws java.io.IOException - IO exceptions
      */
     public synchronized void enableNetwork(boolean enable) throws IOException {
         if(controlConnection == null) {
@@ -251,7 +255,7 @@ public abstract class OnionProxyManager {
      * Specifies if Tor OP is accepting network connections
      * @return True if network is enabled (that doesn't mean that the device is online, only that the Tor OP is trying
      * to connect to the network)
-     * @throws java.io.IOException
+     * @throws java.io.IOException - IO exceptions
      */
     public synchronized boolean isNetworkEnabled() throws IOException {
         if (controlConnection == null) {
@@ -301,7 +305,8 @@ public abstract class OnionProxyManager {
      * only be used if you wanted to start the Tor OP so that the install and related is all done but aren't ready to
      * actually connect it to the network.
      * @return True if all files installed and Tor OP successfully started
-     * @throws java.io.IOException
+     * @throws java.io.IOException - IO Exceptions
+     * @throws java.lang.InterruptedException - If we are, well, interrupted
      */
     public synchronized boolean installAndStartTorOp() throws IOException, InterruptedException {
         // The Tor OP will die if it looses the connection to its socket so if there is no controlSocket defined
@@ -340,9 +345,12 @@ public abstract class OnionProxyManager {
         String pid = onionProxyContext.getProcessId();
         String[] cmd = { torPath, "-f", configPath, OWNER, pid };
         String[] env = onionProxyContext.getEnvironmentArgsForExec();
+        ProcessBuilder processBuilder = new ProcessBuilder(cmd);
+        onionProxyContext.setEnvironmentArgsAndWorkingDirectoryForStart(processBuilder);
         Process torProcess = null;
         try {
-            torProcess = Runtime.getRuntime().exec(cmd, env, workingDirectory);
+//            torProcess = Runtime.getRuntime().exec(cmd, env, workingDirectory);
+            torProcess = processBuilder.start();
             CountDownLatch controlPortCountDownLatch = new CountDownLatch(1);
             eatStream(torProcess.getInputStream(), false, controlPortCountDownLatch);
             eatStream(torProcess.getErrorStream(), true, null);
@@ -379,7 +387,7 @@ public abstract class OnionProxyManager {
             controlConnection.authenticate(FileUtilities.read(cookieFile));
             // Tell Tor to exit when the control connection is closed
             controlConnection.takeOwnership();
-            controlConnection.resetConf(Arrays.asList(OWNER));
+            controlConnection.resetConf(Collections.singletonList(OWNER));
             // Register to receive events from the Tor process
             controlConnection.setEventHandler(new OnionProxyManagerEventHandler());
             controlConnection.setEvents(Arrays.asList(EVENTS));

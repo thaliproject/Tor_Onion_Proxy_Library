@@ -13,35 +13,34 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 buildscript {
     repositories {
+    	mavenLocal()
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:0.10.+'
-        classpath 'com.github.dcendents:android-maven-plugin:1.1'
+        classpath 'com.android.tools.build:gradle:1.0.1'
+        classpath 'com.github.dcendents:android-maven-plugin:1.2'
     }
 }
 
-apply plugin: 'android-library'
+apply plugin: 'com.android.library'
 apply plugin: 'android-maven'
 
-version = System.getProperty('MAVEN_UPLOAD_VERSION')
+version = "0.0.2"
 group = 'com.msopentech.thali'
 archivesBaseName = 'ThaliOnionProxyAndroid'
 
 repositories {
     mavenLocal()
     mavenCentral()
-    maven { url "http://thaliartifactory.cloudapp.net/artifactory/libs-snapshot" }
-    maven { url "http://thaliartifactory.cloudapp.net/artifactory/libs-release" }
 }
 
 android {
-    compileSdkVersion 19
-    buildToolsVersion "19.0.1"
+    compileSdkVersion 21
+    buildToolsVersion "21.1.2"
 
     defaultConfig {
-        minSdkVersion 1
-        targetSdkVersion 19
+        minSdkVersion 16 // Please see the readme if you need Sdk support below 16
+        targetSdkVersion 21
     }
 
     // Needed to work around https://code.google.com/p/android/issues/detail?id=61573#c14
@@ -57,29 +56,9 @@ android {
 dependencies {
     compile fileTree(dir: '../universal/libs', include: '*.jar')
     compile 'org.slf4j:slf4j-api:1.7.7'
-    compile 'com.msopentech.thali:ThaliOnionProxyUniversal:' + System.getProperty('MAVEN_UPLOAD_VERSION')
+    compile 'com.msopentech.thali:ThaliOnionProxyUniversal:' + version
 
     androidTestCompile 'org.slf4j:slf4j-android:1.7.7'
-}
-
-uploadArchives {
-    repositories {
-        mavenDeployer {
-            repository(url: System.getProperty('MAVEN_UPLOAD_REPO_URL')) {
-                authentication(userName: System.getProperty('MAVEN_UPLOAD_USERNAME'), password: System.getProperty('MAVEN_UPLOAD_PASSWORD')) 
-            }
-
-            pom.project {
-                licenses {
-                    license {
-                        name 'Apache 2.0'
-                        url 'https://thali.codeplex.com/SourceControl/latest#license.txt'
-                        distribution 'repo'
-                    }
-                }
-            }
-        }
-    }
 }
 
 task sourcesJar(type: Jar) {

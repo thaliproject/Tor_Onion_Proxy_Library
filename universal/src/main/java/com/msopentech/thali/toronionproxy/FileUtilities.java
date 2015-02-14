@@ -81,11 +81,11 @@ public class FileUtilities {
      * Closes both input and output streams when done.
      * @param in Stream to read from
      * @param out Stream to write to
-     * @throws java.io.IOException
+     * @throws java.io.IOException - If close on input or output fails
      */
     public static void copy(InputStream in, OutputStream out) throws IOException {
         try {
-            copyDontCloseInput(in, out);
+            copyDoNotCloseInput(in, out);
         } finally {
             in.close();
         }
@@ -95,9 +95,9 @@ public class FileUtilities {
      * Won't close the input stream when it's done, needed to handle ZipInputStreams
      * @param in Won't be closed
      * @param out Will be closed
-     * @throws java.io.IOException
+     * @throws java.io.IOException - If close on output fails
      */
-    public static void copyDontCloseInput(InputStream in, OutputStream out) throws IOException {
+    public static void copyDoNotCloseInput(InputStream in, OutputStream out) throws IOException {
         try {
             byte[] buf = new byte[4096];
             while(true) {
@@ -111,8 +111,13 @@ public class FileUtilities {
     }
 
     public static void listFilesToLog(File f) {
-        if(f.isDirectory()) for(File child : f.listFiles()) listFilesToLog(child);
-        else LOG.info(f.getAbsolutePath());
+        if(f.isDirectory()) {
+            for(File child : f.listFiles()) {
+                listFilesToLog(child);
+            }
+        } else {
+            LOG.info(f.getAbsolutePath());
+        }
     }
 
     public static byte[] read(File f) throws IOException {
@@ -135,7 +140,7 @@ public class FileUtilities {
      * Reads the input stream, deletes fileToWriteTo if it exists and over writes it with the stream.
      * @param readFrom Stream to read from
      * @param fileToWriteTo File to write to
-     * @throws java.io.IOException
+     * @throws java.io.IOException - If any of the file operations fail
      */
     public static void cleanInstallOneFile(InputStream readFrom, File fileToWriteTo) throws IOException {
         if (fileToWriteTo.exists() && fileToWriteTo.delete() == false) {
@@ -161,6 +166,7 @@ public class FileUtilities {
      * This has to exist somewhere! Why isn't it a part of the standard Java library?
      * @param destinationDirectory Directory files are to be extracted to
      * @param zipFileInputStream Stream to unzip
+     * @throws java.io.IOException - If there are any file errors
      */
     public static void extractContentFromZip(File destinationDirectory, InputStream zipFileInputStream)
             throws IOException {
@@ -186,7 +192,7 @@ public class FileUtilities {
                     }
 
                     OutputStream fileOutputStream = new FileOutputStream(file);
-                    copyDontCloseInput(zipInputStream, fileOutputStream);
+                    copyDoNotCloseInput(zipInputStream, fileOutputStream);
                 }
             }
         } finally {

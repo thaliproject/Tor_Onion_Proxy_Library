@@ -15,11 +15,9 @@ package com.msopentech.thali.local.toronionproxy;
 
 import com.msopentech.thali.java.toronionproxy.JavaOnionProxyContext;
 import com.msopentech.thali.java.toronionproxy.JavaOnionProxyManager;
-import com.msopentech.thali.toronionproxy.OnionProxyContext;
 import com.msopentech.thali.toronionproxy.OnionProxyManager;
 import junit.framework.TestCase;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
