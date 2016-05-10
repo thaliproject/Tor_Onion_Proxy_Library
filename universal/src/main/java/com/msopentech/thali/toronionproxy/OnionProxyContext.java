@@ -94,6 +94,7 @@ abstract public class OnionProxyContext {
                 // Linux apparently will not look in the current directory by default. By setting this
                 // environment variable we fix that.
                 environment.put("LD_LIBRARY_PATH", getWorkingDirectory().getAbsolutePath());
+                break;
             default:
                 break;
         }
@@ -109,6 +110,7 @@ abstract public class OnionProxyContext {
                 // Linux apparently will not look in the current directory by default. By setting this
                 // environment variable we fix that.
                 envArgs.add("LD_LIBRARY_PATH=" + getWorkingDirectory().getAbsolutePath());
+                break;
             default:
                 break;
         }

@@ -78,9 +78,7 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
         } finally {
             if (networkStateReceiver != null) {
                 try {
-                    if (networkStateReceiver != null) {
-                        context.unregisterReceiver(networkStateReceiver);
-                    }
+                    context.unregisterReceiver(networkStateReceiver);
                 } catch(IllegalArgumentException e) {
                     // There is a race condition where if someone calls stop before installAndStartTorOp is done
                     // then we could get an exception because the network state receiver might not be properly
