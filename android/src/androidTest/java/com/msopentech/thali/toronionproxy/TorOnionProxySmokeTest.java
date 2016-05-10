@@ -263,7 +263,7 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
 
     private void deleteTorWorkingDirectory(File torWorkingDirectory) {
         FileUtilities.recursiveFileDelete(torWorkingDirectory);
-        if (torWorkingDirectory.mkdirs() == false) {
+        if (!torWorkingDirectory.mkdirs()) {
             throw new RuntimeException("couldn't create Tor Working Directory after deleting it.");
         }
     }

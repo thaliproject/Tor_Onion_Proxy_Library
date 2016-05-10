@@ -53,7 +53,7 @@ abstract public class OnionProxyContext {
         // do by default, something we hope to fix with https://github.com/thaliproject/Tor_Onion_Proxy_Library/issues/13
         Thread.sleep(1000,0);
 
-        if (workingDirectory.exists() == false && workingDirectory.mkdirs() == false) {
+        if (!workingDirectory.exists() && !workingDirectory.mkdirs()) {
             throw new RuntimeException("Could not create root directory!");
         }
 
@@ -152,7 +152,7 @@ abstract public class OnionProxyContext {
                     FileUtilities.recursiveFileDelete(file);
                 }
             } else {
-                if (file.delete() == false) {
+                if (!file.delete()) {
                     throw new RuntimeException("Could not delete file " + file.getAbsolutePath());
                 }
             }

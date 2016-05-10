@@ -145,7 +145,7 @@ public class FileUtilities {
      * @throws java.io.IOException - If any of the file operations fail
      */
     public static void cleanInstallOneFile(InputStream readFrom, File fileToWriteTo) throws IOException {
-        if (fileToWriteTo.exists() && fileToWriteTo.delete() == false) {
+        if (fileToWriteTo.exists() && !fileToWriteTo.delete()) {
             throw new RuntimeException("Could not remove existing file " + fileToWriteTo.getName());
         }
         OutputStream out = new FileOutputStream(fileToWriteTo);
@@ -159,7 +159,7 @@ public class FileUtilities {
             }
         }
 
-        if (fileOrDirectory.exists() && fileOrDirectory.delete() == false) {
+        if (fileOrDirectory.exists() && fileOrDirectory.delete()) {
             throw new RuntimeException("Could not delete directory " + fileOrDirectory.getAbsolutePath());
         }
     }
@@ -179,17 +179,17 @@ public class FileUtilities {
             while ((zipEntry = zipInputStream.getNextEntry()) != null) {
                 File file = new File(destinationDirectory, zipEntry.getName());
                 if (zipEntry.isDirectory()) {
-                    if (file.exists() == false && file.mkdirs() == false) {
+                    if (file.exists() == false && !file.mkdirs()) {
                         throw new RuntimeException("Could not create directory " + file);
                     }
                 } else {
-                    if (file.exists() && file.delete() == false) {
+                    if (file.exists() && !file.delete()) {
                         throw new RuntimeException(
                                 "Could not delete file in preparation for overwriting it. File - " +
                                         file.getAbsolutePath());
                     }
 
-                    if (file.createNewFile() == false) {
+                    if (!file.createNewFile()) {
                         throw new RuntimeException("Could not create file " + file);
                     }
 
