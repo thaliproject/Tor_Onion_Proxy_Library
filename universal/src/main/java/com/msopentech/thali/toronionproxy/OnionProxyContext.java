@@ -25,10 +25,10 @@ import java.util.Map;
  * as managing file locations.
  */
 abstract public class OnionProxyContext {
-    protected final static String hiddenserviceDirectoryName = "hiddenservice";
-    protected final static String geoIpName = "geoip";
-    protected final static String geoIpv6Name = "geoip6";
-    protected final static String torrcName = "torrc";
+    protected final static String HIDDENSERVICE_DIRECTORY_NAME = "hiddenservice";
+    protected final static String GEO_IP_NAME = "geoip";
+    protected final static String GEO_IPV_6_NAME = "geoip6";
+    protected final static String TORRC_NAME = "torrc";
     protected final File workingDirectory;
     protected final File geoIpFile;
     protected final File geoIpv6File;
@@ -39,12 +39,12 @@ abstract public class OnionProxyContext {
 
     public OnionProxyContext(File workingDirectory) {
         this.workingDirectory = workingDirectory;
-        geoIpFile = new File(getWorkingDirectory(), geoIpName);
-        geoIpv6File = new File(getWorkingDirectory(), geoIpv6Name);
-        torrcFile = new File(getWorkingDirectory(), torrcName);
+        geoIpFile = new File(getWorkingDirectory(), GEO_IP_NAME);
+        geoIpv6File = new File(getWorkingDirectory(), GEO_IPV_6_NAME);
+        torrcFile = new File(getWorkingDirectory(), TORRC_NAME);
         torExecutableFile = new File(getWorkingDirectory(), getTorExecutableFileName());
         cookieFile = new File(getWorkingDirectory(), ".tor/control_auth_cookie");
-        hostnameFile = new File(getWorkingDirectory(), "/" + hiddenserviceDirectoryName + "/hostname");
+        hostnameFile = new File(getWorkingDirectory(), "/" + HIDDENSERVICE_DIRECTORY_NAME + "/hostname");
     }
 
     public void installFiles() throws IOException, InterruptedException {
@@ -57,20 +57,20 @@ abstract public class OnionProxyContext {
             throw new RuntimeException("Could not create root directory!");
         }
 
-        FileUtilities.cleanInstallOneFile(getAssetOrResourceByName(geoIpName), geoIpFile);
-        FileUtilities.cleanInstallOneFile(getAssetOrResourceByName(geoIpv6Name), geoIpv6File);
-        FileUtilities.cleanInstallOneFile(getAssetOrResourceByName(torrcName), torrcFile);
+        FileUtilities.cleanInstallOneFile(getAssetOrResourceByName(GEO_IP_NAME), geoIpFile);
+        FileUtilities.cleanInstallOneFile(getAssetOrResourceByName(GEO_IPV_6_NAME), geoIpv6File);
+        FileUtilities.cleanInstallOneFile(getAssetOrResourceByName(TORRC_NAME), torrcFile);
 
         switch(OsData.getOsType()) {
-            case Android:
+            case ANDROID:
                 FileUtilities.cleanInstallOneFile(
                         getAssetOrResourceByName(getPathToTorExecutable() + getTorExecutableFileName()),
                         torExecutableFile);
                 break;
-            case Windows:
-            case Linux32:
-            case Linux64:
-            case Mac:
+            case WINDOWS:
+            case LINUX_32:
+            case LINUX_64:
+            case MAC:
                 FileUtilities.extractContentFromZip(getWorkingDirectory(),
                         getAssetOrResourceByName(getPathToTorExecutable() + "tor.zip"));
                 break;
@@ -88,8 +88,8 @@ abstract public class OnionProxyContext {
         Map<String, String> environment = processBuilder.environment();
         environment.put("HOME", getWorkingDirectory().getAbsolutePath());
         switch (OsData.getOsType()) {
-            case Linux32:
-            case Linux64:
+            case LINUX_32:
+            case LINUX_64:
                 // We have to provide the LD_LIBRARY_PATH because when looking for dynamic libraries
                 // Linux apparently will not look in the current directory by default. By setting this
                 // environment variable we fix that.
@@ -103,8 +103,8 @@ abstract public class OnionProxyContext {
         List<String> envArgs = new ArrayList<String>();
         envArgs.add("HOME=" + getWorkingDirectory().getAbsolutePath() );
         switch(OsData.getOsType()) {
-            case Linux32:
-            case Linux64:
+            case LINUX_32:
+            case LINUX_64:
                 // We have to provide the LD_LIBRARY_PATH because when looking for dynamic libraries
                 // Linux apparently will not look in the current directory by default. By setting this
                 // environment variable we fix that.
@@ -148,7 +148,7 @@ abstract public class OnionProxyContext {
         Thread.sleep(1000,0);
         for(File file : getWorkingDirectory().listFiles()) {
             if (file.isDirectory()) {
-                if (file.getName().compareTo(hiddenserviceDirectoryName) != 0) {
+                if (file.getName().compareTo(HIDDENSERVICE_DIRECTORY_NAME) != 0) {
                     FileUtilities.recursiveFileDelete(file);
                 }
             } else {
@@ -167,15 +167,15 @@ abstract public class OnionProxyContext {
     protected String getPathToTorExecutable() {
         String path = "native/";
         switch (OsData.getOsType()) {
-            case Android:
+            case ANDROID:
                 return "";
-            case Windows:
+            case WINDOWS:
                 return path + "windows/x86/"; // We currently only support the x86 build but that should work everywhere
-            case Mac:
+            case MAC:
                 return path +  "osx/x64/"; // I don't think there even is a x32 build of Tor for Mac, but could be wrong.
-            case Linux32:
+            case LINUX_32:
                 return path + "linux/x86/";
-            case Linux64:
+            case LINUX_64:
                 return path + "linux/x64/";
             default:
                 throw new RuntimeException("We don't support Tor on this OS");
@@ -184,13 +184,13 @@ abstract public class OnionProxyContext {
 
     protected String getTorExecutableFileName() {
         switch(OsData.getOsType()) {
-            case Android:
-            case Linux32:
-            case Linux64:
+            case ANDROID:
+            case LINUX_32:
+            case LINUX_64:
                 return "tor";
-            case Windows:
+            case WINDOWS:
                 return "tor.exe";
-            case Mac:
+            case MAC:
                 return "tor.real";
             default:
                 throw new RuntimeException("We don't support Tor on this OS");
