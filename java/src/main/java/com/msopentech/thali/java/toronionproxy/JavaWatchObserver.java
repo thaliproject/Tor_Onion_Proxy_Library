@@ -53,7 +53,7 @@ public class JavaWatchObserver implements WriteObserver {
 
 
     public JavaWatchObserver(File fileToWatch) throws IOException {
-        if (fileToWatch == null || fileToWatch.exists() == false) {
+        if (fileToWatch == null || !fileToWatch.exists()) {
             throw new RuntimeException("fileToWatch must not be null and must already exist.");
         }
         this.fileToWatch = fileToWatch;
@@ -107,7 +107,7 @@ public class JavaWatchObserver implements WriteObserver {
 
                     // In case we haven't yet gotten the event we are looking for we have to reset in order to
                     // receive any further notifications.
-                    if (key.reset() == false) {
+                    if (!key.reset()) {
                         LOG.error("The key became invalid which should not have happened.");
                     }
                 }

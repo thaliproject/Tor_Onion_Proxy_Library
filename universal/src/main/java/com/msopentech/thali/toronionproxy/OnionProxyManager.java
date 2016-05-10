@@ -97,14 +97,14 @@ public abstract class OnionProxyManager {
 
         try {
             for(int retryCount = 0; retryCount < numberOfRetries; ++retryCount) {
-                if (installAndStartTorOp() == false) {
+                if (!installAndStartTorOp()) {
                     return false;
                 }
                 enableNetwork(true);
 
                 // We will check every second to see if boot strapping has finally finished
                 for(int secondsWaited = 0; secondsWaited < secondsBeforeTimeOut; ++secondsWaited) {
-                    if (isBootstrapped() == false) {
+                    if (!isBootstrapped()) {
                         Thread.sleep(1000,0);
                     } else {
                         return true;
@@ -125,7 +125,7 @@ public abstract class OnionProxyManager {
             return false;
         } finally {
             // Make sure we return the Tor OP in some kind of consistent state, even if it's 'off'.
-            if (isRunning() == false) {
+            if (!isRunning()) {
                 stop();
             }
         }
@@ -137,7 +137,7 @@ public abstract class OnionProxyManager {
      * @throws java.io.IOException - File errors
      */
     public synchronized int getIPv4LocalHostSocksPort() throws IOException {
-        if (isRunning() == false) {
+        if (!isRunning()) {
             throw new RuntimeException("Tor is not running!");
         }
 
@@ -168,21 +168,21 @@ public abstract class OnionProxyManager {
 
         List<ConfigEntry> currentHiddenServices = controlConnection.getConf("HiddenServiceOptions");
 
-        if ((currentHiddenServices.size() == 1 &&
+        if (!(currentHiddenServices.size() == 1 &&
                 currentHiddenServices.get(0).key.compareTo("HiddenServiceOptions") == 0 &&
-                currentHiddenServices.get(0).value.compareTo("") == 0) == false) {
+                currentHiddenServices.get(0).value.compareTo("") == 0)) {
             throw new RuntimeException("Sorry, only one hidden service to a customer and we already have one. Please send complaints to https://github.com/thaliproject/Tor_Onion_Proxy_Library/issues/5 with your scenario so we can justify fixing this.");
         }
 
         LOG.info("Creating hidden service");
         File hostnameFile = onionProxyContext.getHostNameFile();
 
-        if (hostnameFile.getParentFile().exists() == false &&
-                hostnameFile.getParentFile().mkdirs() == false) {
+        if (!hostnameFile.getParentFile().exists() &&
+                !hostnameFile.getParentFile().mkdirs()) {
             throw new RuntimeException("Could not create hostnameFile parent directory");
         }
 
-        if (hostnameFile.exists() == false && hostnameFile.createNewFile() == false) {
+        if (!hostnameFile.exists() && !hostnameFile.createNewFile()) {
             throw new RuntimeException("Could not create hostnameFile");
         }
 
@@ -324,15 +324,15 @@ public abstract class OnionProxyManager {
 
         LOG.info("Starting Tor");
         File cookieFile = onionProxyContext.getCookieFile();
-        if (cookieFile.getParentFile().exists() == false &&
-                cookieFile.getParentFile().mkdirs() == false) {
+        if (!cookieFile.getParentFile().exists() &&
+                !cookieFile.getParentFile().mkdirs()) {
             throw new RuntimeException("Could not create cookieFile parent directory");
         }
 
         // The original code from Briar watches individual files, not a directory and Android's file observer
         // won't work on files that don't exist. Rather than take 5 seconds to rewrite Briar's code I instead
         // just make sure the file exists
-        if (cookieFile.exists() == false && cookieFile.createNewFile() == false) {
+        if (!cookieFile.exists() && !cookieFile.createNewFile()) {
             throw new RuntimeException("Could not create cookieFile");
         }
 
