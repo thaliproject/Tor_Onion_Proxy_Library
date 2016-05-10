@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.util.Scanner;
 
 public class OsData {
-    public enum OsType { Windows, Linux32, Linux64, Mac, Android }
+    public enum OsType {WINDOWS, LINUX_32, LINUX_64, MAC, ANDROID}
     private static OsType detectedType = null;
 
     public static OsType getOsType() {
@@ -51,14 +51,14 @@ public class OsData {
     protected static OsType actualGetOsType() {
 
         if (System.getProperty("java.vm.name").contains("Dalvik")) {
-            return OsType.Android;
+            return OsType.ANDROID;
         }
 
         String osName = System.getProperty("os.name");
         if (osName.contains("Windows")) {
-            return OsType.Windows;
+            return OsType.WINDOWS;
         } else if (osName.contains("Mac")) {
-            return OsType.Mac;
+            return OsType.MAC;
         } else if (osName.contains("Linux")) {
             return getLinuxType();
         }
@@ -85,10 +85,10 @@ public class OsData {
             }
 
             if (unameOutput.compareTo("i686") == 0) {
-                return OsType.Linux32;
+                return OsType.LINUX_32;
             }
             if (unameOutput.compareTo("x86_64") == 0) {
-                return OsType.Linux64;
+                return OsType.LINUX_64;
             }
             throw new RuntimeException("Could not understand uname output, not sure what bitness");
         } catch (IOException e) {

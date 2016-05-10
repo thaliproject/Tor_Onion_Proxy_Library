@@ -131,7 +131,7 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
         }
     }
 
-    public enum ServerState { success, timedout, othererror }
+    public enum ServerState {SUCCESS, TIMEDOUT, OTHERERROR}
 
     private String runHiddenServiceTest(OnionProxyManager hiddenServiceManager, OnionProxyManager clientManager)
             throws IOException, InterruptedException {
@@ -154,7 +154,7 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
             clientOutputStream.write(testBytes);
             clientOutputStream.flush();
             ServerState serverState = serverQueue.poll(WAIT_FOR_HIDDEN_SERVICE_MINUTES, TimeUnit.MINUTES);
-            if (serverState == ServerState.success) {
+            if (serverState == ServerState.SUCCESS) {
                 return onionAddress;
             } else {
                 long timeForThreadToExit = Calendar.getInstance().getTimeInMillis() + 1000;
@@ -217,25 +217,25 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
                         byte receivedByte = dataInputStream.readByte();
                         if (nextByte != receivedByte) {
                             LOG.error("Received " + receivedByte + ", but expected " + nextByte);
-                            serverQueue.put(ServerState.othererror);
+                            serverQueue.put(ServerState.OTHERERROR);
                             return;
                         } else {
                             LOG.info("Received " + receivedByte);
                         }
                     }
                     LOG.info("All Bytes Successfully Received!");
-                    serverQueue.put(ServerState.success);
+                    serverQueue.put(ServerState.SUCCESS);
                 } catch(IOException e) {
                     LOG.warn("We got an io exception waiting for the server bytes, this really shouldn't happen, but does.", e);
                     try {
-                        serverQueue.put(ServerState.timedout);
+                        serverQueue.put(ServerState.TIMEDOUT);
                     } catch (InterruptedException e1) {
                         LOG.error("We couldn't send notice that we had a server time out! EEEK!");
                     }
                 } catch (InterruptedException e) {
                     LOG.error("Test Failed", e);
                     try {
-                        serverQueue.put(ServerState.othererror);
+                        serverQueue.put(ServerState.OTHERERROR);
                     } catch (InterruptedException e1) {
                         LOG.error("We got an InterruptedException and couldn't tell the server queue about it!", e1);
                     }

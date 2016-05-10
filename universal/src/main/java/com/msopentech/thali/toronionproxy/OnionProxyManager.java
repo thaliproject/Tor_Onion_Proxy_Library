@@ -362,7 +362,7 @@ public abstract class OnionProxyManager {
             // than do that on Windows we just let the process run on the exec and hence don't look for an exit code.
             // This does create a condition where the process has exited due to a problem but we should hopefully
             // detect that when we try to use the control connection.
-            if (OsData.getOsType() != OsData.OsType.Windows) {
+            if (OsData.getOsType() != OsData.OsType.WINDOWS) {
                 int exit = torProcess.waitFor();
                 torProcess = null;
                 if(exit != 0) {
