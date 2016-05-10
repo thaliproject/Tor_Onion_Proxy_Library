@@ -77,6 +77,8 @@ import java.util.zip.ZipInputStream;
 public class FileUtilities {
     private static final Logger LOG = LoggerFactory.getLogger(FileUtilities.class);
 
+    private FileUtilities() {}
+
     /**
      * Closes both input and output streams when done.
      * @param in Stream to read from

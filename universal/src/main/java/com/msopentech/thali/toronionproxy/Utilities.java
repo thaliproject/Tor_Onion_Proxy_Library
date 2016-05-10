@@ -24,6 +24,8 @@ public class Utilities {
     private static final int READ_TIMEOUT_MILLISECONDS = 60000;
     private static final int CONNECT_TIMEOUT_MILLISECONDS = 60000;
 
+    private Utilities() {}
+
     /**
      * When making a request via the Tor Proxy one needs to establish the socket using SOCKS4a. However Android
      * only supports SOCKS4 so this class provides a wrapper when getting a socket to handle things.
