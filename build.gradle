@@ -1,33 +1,22 @@
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
-
-buildscript {
-    repositories {
-        mavenLocal()
-        jcenter()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:2.1.0-rc1'
-    }
+allprojects  {
+  apply plugin: 'maven'
+  group = 'com.msopentech.thali'
+  version = '0.0.3'
 }
 
-allprojects {
-    repositories {
-        jcenter()
-    }
+subprojects {
+  apply plugin: 'java'
+  sourceCompatibility = 1.7
+  targetCompatibility = 1.7
+
+  repositories {
+    mavenLocal()
+    mavenCentral()
+    jcenter()
+  }
 }
 
-task clean(type: Delete) {
-    delete rootProject.buildDir
-}
+evaluationDependsOn ":universal"
+evaluationDependsOn ":java"
 
-//makes cleaner to use ./gradlew :android:install
 
-evaluationDependsOn ":universal" 
-evaluationDependsOn ":android" 
-evaluationDependsOn ":java" 
-
-[':android',':java'].each {
-  project("$it"){ 
-    install.dependsOn(':universal:install') 
-  } 
-}

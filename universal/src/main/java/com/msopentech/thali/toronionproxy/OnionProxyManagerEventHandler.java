@@ -35,7 +35,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Logs the data we get from notifications from the Tor OP. This is really just meant for debugging.
@@ -43,16 +42,8 @@ import java.util.Map;
 public class OnionProxyManagerEventHandler implements EventHandler {
     private static final Logger LOG = LoggerFactory.getLogger(OnionProxyManagerEventHandler.class);
 
-    public void circuitStatus(String status, String id, List<String> path, Map<String, String> info) {
-        String msg = "CircuitStatus: " + id + " " + status;
-        String purpose = info.get("PURPOSE");
-        if(purpose != null) msg += ", purpose: " + purpose;
-        String hsState = info.get("HS_STATE");
-        if(hsState != null) msg += ", state: " + hsState;
-        String rendQuery = info.get("REND_QUERY");
-        if(rendQuery != null) msg += ", service: " + rendQuery;
-        if(!path.isEmpty()) msg += ", path: " + shortenPath(path);
-        LOG.info(msg);
+    public void circuitStatus(String status, String id, String path) {
+        LOG.info("circuitStatus: status:" + status + ", id: " + id + ", path: " + path);
     }
 
     public void streamStatus(String status, String id, String target) {

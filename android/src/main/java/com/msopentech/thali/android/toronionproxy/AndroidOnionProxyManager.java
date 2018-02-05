@@ -29,19 +29,18 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.android.toronionproxy;
 
-import android.annotation.SuppressLint;
+import com.msopentech.thali.toronionproxy.OnionProxyManager;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
-import android.os.Build;
-import com.msopentech.thali.toronionproxy.OnionProxyManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
 
 import static android.content.Context.CONNECTIVITY_SERVICE;
@@ -60,8 +59,8 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
     }
 
     @Override
-    public boolean installAndStartTorOp() throws IOException, InterruptedException {
-        if (super.installAndStartTorOp()) {
+    public synchronized boolean start(boolean enableLogs) throws IOException {
+        if (super.start(enableLogs)) {
             // Register to receive network status events
             networkStateReceiver = new NetworkStateReceiver();
             IntentFilter filter = new IntentFilter(CONNECTIVITY_ACTION);
@@ -72,7 +71,7 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
     }
 
     @Override
-    public void stop() throws IOException {
+    public synchronized void stop() throws IOException {
         try {
             super.stop();
         } finally {
@@ -86,26 +85,6 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
                     LOG.info("Someone tried to call stop before we had finished registering the receiver", e);
                 }
             }
-        }
-    }
-
-    @SuppressLint("NewApi")
-    protected boolean setExecutable(File f) {
-        if(Build.VERSION.SDK_INT >= 9) {
-            return f.setExecutable(true, true);
-        } else {
-            String[] command = { "chmod", "700", f.getAbsolutePath() };
-            try {
-                return Runtime.getRuntime().exec(command).waitFor() == 0;
-            } catch(IOException e) {
-                LOG.warn(e.toString(), e);
-            } catch(InterruptedException e) {
-                LOG.warn("Interrupted while executing chmod");
-                Thread.currentThread().interrupt();
-            } catch(SecurityException e) {
-                LOG.warn(e.toString(), e);
-            }
-            return false;
         }
     }
 

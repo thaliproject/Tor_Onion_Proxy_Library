@@ -1,49 +1,19 @@
-/*
-Copyright (c) Microsoft Open Technologies, Inc.
-All Rights Reserved
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
-License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
-
-THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED,
-INCLUDING WITHOUT LIMITATION ANY IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
-MERCHANTABLITY OR NON-INFRINGEMENT.
-
-See the Apache 2 License for the specific language governing permissions and limitations under the License.
-*/
-
 apply plugin: 'java'
 apply plugin: 'maven'
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
 
-sourceCompatibility = 1.6
-
-version = "0.0.2"
 group = 'com.msopentech.thali'
-archivesBaseName = 'ThaliOnionProxyUniversal'
- 
+version = '0.0.3'
+
 repositories {
     mavenLocal()
     mavenCentral()
+    jcenter()
 }
 
 dependencies {
-    compile fileTree(dir: 'libs', include: '*.jar')
-    compile 'org.slf4j:slf4j-api:1.7.7'
-
-    testCompile 'junit:junit:4.11'
-    testCompile 'org.slf4j:slf4j-simple:1.7.7'
+    implementation 'org.slf4j:slf4j-api:1.7.7'
+    implementation 'net.freehaven.tor.control:jtorctl:0.2'
 }
 
-task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
-    from sourceSets.main.java.srcDirs
-}
-
-task generateJavadocs(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
-    from javadoc.destinationDir
-}
-
-artifacts {
-    archives sourcesJar
-    archives generateJavadocs
-}
