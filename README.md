@@ -1,4 +1,4 @@
-Tor_Onion_Proxy_Library
+Tor Onion Proxy Library
 =======================
 NOTE: This project exists independently of the Tor Project.
 
@@ -16,20 +16,34 @@ For now you get to build this yourself. Eventually, when it has enough testing, 
 1. Install local maven (seriously, if you don't do this, nothing else will work)
 2. Clone this repo
 3. Install the JDK and if you are using Android, the Android SDK as well
-4. Navigate to the 'universal' sub-directory and run 'gradlew install'
+4. run 'gradlew install' from the root project. This will build the universal and java modules
 
 ## Android
-If you are going to use this library with Android then go to the 'android' sub-directory and run 'gradlew install'.
+If you are going to use this library with Android then go to 'android' directory
+1. gradlew build (gradle build -x installDebugAndroidTest)
+2. gradlew publish publishToMavenLocal
 
-Now everything should be built and installed into your local maven.
+Now everything should be built and installed into your local maven. The project file will be packaged as an aar and can then be imported into your Android project.
 
 In your Android project add the following to dependencies in build.gradle:
-```groovy
-    compile 'com.msopentech.thali:ThaliOnionProxyAndroid:0.0.2'
-    compile 'org.slf4j:slf4j-android:1.7.7'
-```
+<pre>
+apply plugin: 'maven'
 
-Also add mavenLocal() to your repositories in build.gradle (remember, this is the root level repositories, NOT repositories under buildscript).
+dependencies {
+    implementation 'com.msopentech.thali:universal:0.0.3'
+    implementation 'org.torproject:tor-android-binary:0.3.1.9a'
+    implementation 'com:msopentech:thali:toronionproxy:android:android:0.0.3@aar'
+    implementation 'org.slf4j:slf4j-android:1.7.7'
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+    google()
+    jcenter()
+    maven { url "https://raw.githubusercontent.com/guardianproject/gpmaven/master" }
+}
+</pre>
 
 While this code doesn't do much, using it is kind of a pain because of all the ceremony in Java land. So if you are going to host a Tor hidden service on your device or if you want to open connections to the Internet via Tor then there are a variety of things you need to know. My recommendation is that you open android/src/androidTest/java/com/msopentech/thali/toronionproxy/TorOnionProxySmokeTest.java and look up the method testHiddenServiceRecycleTime and start reading.
 
@@ -43,7 +57,7 @@ int totalSecondsPerTorStartup = 4 * 60;
 int totalTriesPerTorStartup = 5;
 
 // Start the Tor Onion Proxy
-if (onionProxyManager.startWithRepeat(totalSecondsPerTorStartup, totalTriesPerTorStartup) == false) {
+if (onionProxyManager.startWithRepeat(totalSecondsPerTorStartup, totalTriesPerTorStartup, true) == false) {
     Log.e("TorTest", "Couldn't start Tor!");
     return;
 }
@@ -71,6 +85,9 @@ Socket clientSocket =
 // hidden services) so have lots of retry logic.
 ```
 
+### Android Studio
+To work on the 'android' module. You must have first built the universal project from gradle. Then import android as a project into Android Studio. It will import binary versions of its dependencies from the maven repository. 
+
 ## Java
 If you are going to use this library with Java then go to the 'java' sub-directory and run 'gradlew install'.
 
@@ -85,14 +102,19 @@ apply plugin: 'maven'
 
 Then go to your repositories and add:
 ```groovy
-mavenLocal()
+    mavenLocal()
+    mavenCentral()
+    google()
+    jcenter()
+    maven { url "https://raw.githubusercontent.com/guardianproject/gpmaven/master" }
 ```
 
 Then go to dependencies and add in:
 ```groovy
-compile 'com.msopentech.thali:ThaliOnionProxyJava:0.0.2'
-compile 'com.msopentech.thali:BriarJtorctl:0.0.2'
-compile 'org.slf4j:slf4j-simple:1.7.7'
+implementation 'com.msopentech.thali:java:0.0.3'
+implementation 'com.msopentech.thali:universal:0.0.3'
+implementation 'org.slf4j:slf4j-api:1.7.7'
+implementation 'net.freehaven.tor.control:jtorctl:0.2'
 ```
 
 As discussed above, the code in this library is pretty trivial. But using it is hard because of the complexities of Tor and Java. For those in Java land please go to java\src\test\java\com\msopentech\thali\toronionproxy\TorOnionProxySmokeTest and check out testHiddenServiceRecycleTime().
@@ -109,7 +131,7 @@ int totalSecondsPerTorStartup = 4 * 60;
 int totalTriesPerTorStartup = 5;
 
 // Start the Tor Onion Proxy
-if (onionProxyManager.startWithRepeat(totalSecondsPerTorStartup, totalTriesPerTorStartup) == false) {
+if (onionProxyManager.startWithRepeat(totalSecondsPerTorStartup, totalTriesPerTorStartup, true) == false) {
     return;
 }
 
@@ -154,7 +176,7 @@ Note however that shared files like the jtorctl-briar, geoip and torrc are kept 
 One further complication are tests. Hard experience has taught that putting tests into universal doesn't work well because it means we have to write custom wrappers for each test in android and java in order to run them. So instead the tests live primarily in the android project and we use a gradle task to copy them over to the Java project. This lets us share identical tests but it means that all edits to tests have to happen in the android project. Any changes made to shared test code in the java project will be lost. This should not be an issue for anyone but a dev actually working on Tor_Onion_Proxy_Library, to users its irrelevant.
 
 ## What is the maturity of the code in this project?
-Well the release version is currently 0.0.2 so that should say something. This is an alpha. We have (literally) one test. Obviously we need a heck of a lot more coverage. But we have run that test and it does actually work which means that the Tor OP is being run and is available.
+Well the release version is currently 0.0.3 so that should say something. This is an alpha. We have (literally) one test. Obviously we need a heck of a lot more coverage. But we have run that test and it does actually work which means that the Tor OP is being run and is available.
 
 ## Can I run multiple programs next to each other that use this library?
 Yes, they won't interfere with each other. We use dynamic ports for both the control and socks channel. 
@@ -170,12 +192,9 @@ git config user.email YourAlias@YourDomain
 
 What we most need help with right now is test coverage. But we also have a bunch of features we would like to add. See our issues for a list.
 
-## Where does jtorctl-briar.jar come from?
-This is a fork of jtorctl with some fixes from Briar. So we got it out of Briar's depot. The plan is that jtorctl is supposed to accept Briar's changes and then we will start to build jtorctl ourselves from the Tor depot directly.
-
 ## Where did the binaries for the Tor OP come from?
 ### Android
-The ARM binary for Android came from the OrBot distribution available at https://guardianproject.info/releases/. I take the latest PIE release qualify APK, unzip it and go to res/raw and then decompress tor.mp3 and go into bin and copy out the tor executable file and put it into android/src/main/assets
+This comes from the [tor-android-library](https://github.com/n8fr8/tor-android) 
 
 ### Windows
 I download the Expert Bundle for Windows from https://www.torproject.org/download/download.html.en and took tor.exe, libeay32.dll, libevent-2-0-5.dll, libgcc_s_sjlj-1.dll and ssleay32.dll from the Tor directory. I then need to zip them all together into a file called tor.zip and stick them into java/src/main/resources/native/windows/x86.
@@ -189,10 +208,9 @@ I then do the same thing but this time with the 64 bit download and put the resu
 I download the OS/X Tor Browser bundle from https://www.torproject.org/download/download.html.en and using 7Zip opened my way into the dmg file inside of 0.unknown partition\TorBrowser.app\TorBrowser\Tor and copied out tor.real and libevent-2.0.5.dylib. And, as with Linux, I then need to zip those two files together into a file called tor.zip and put that into java/src/main/resources/native/osx/x64.
 
 ## Where did the geoip and geoip6 files come from?
-I took them from the Data/Tor directory of the Windows Expert Bundle (see previous question).
-
-## Why does the Android code require minSdkVersion 16?!?!?! Why so high?
-The issue is the tor executable that I get from Guardian. To run on Lollipop the executable has to be PIE. But PIE support only started with SDK 16. So if I'm going to ship a PIE executable I have to set minSdkVersion to 16. But!!!!! Guardian actually also builds a non-PIE version of the executable. So if you have a use case that requires support for an SDK less than 16 PLEASE PLEASE PLEASE send mail to the [Thali Mailing list](https://pairlist10.pair.net/mailman/listinfo/thali-talk). We absolutely can fix this. We just haven't had a good reason to. So please give us one!
+This comes from the [tor-android-library](https://github.com/n8fr8/tor-android) 
 
 ## Code of Conduct
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+
+
