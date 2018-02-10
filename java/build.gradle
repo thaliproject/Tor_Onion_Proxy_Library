@@ -13,10 +13,11 @@ repositories {
 }
 
 dependencies {
-implementation 'org.slf4j:slf4j-api:1.7.7'
-implementation 'net.freehaven.tor.control:jtorctl:0.2'
-implementation project(':universal')
-testCompile group: 'junit', name: 'junit', version: '4.12'
+    implementation 'org.slf4j:slf4j-api:1.7.25'
+    implementation 'org.slf4j:slf4j-simple:1.7.25'
+    implementation 'net.freehaven.tor.control:jtorctl:0.2'
+    implementation project(':universal')
+    testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 
 

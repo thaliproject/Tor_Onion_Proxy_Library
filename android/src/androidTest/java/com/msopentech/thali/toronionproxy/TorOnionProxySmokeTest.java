@@ -114,7 +114,7 @@ public class TorOnionProxySmokeTest  {
             // Note: Normally you never want to call anything like deleteTorWorkingDirectory since this
             // is where all the cached data about the Tor network is kept and it makes connectivity
             // must faster. We are deleting it here just to make sure we are running clean tests.
-            deleteTorWorkingDirectory(hiddenServiceManager.getWorkingDirectory());
+            deleteTorWorkingDirectory(hiddenServiceManager.getContext().getConfig().getConfigDir());
             hiddenServiceManager.setup();
 
             assertTrue(hiddenServiceManager.startWithRepeat(TOTAL_SECONDS_PER_TOR_STARTUP, TOTAL_TRIES_PER_TOR_STARTUP, true));
@@ -122,7 +122,7 @@ public class TorOnionProxySmokeTest  {
             LOG.warn("Hidden Service Manager is running.");
 
             clientManager = getOnionProxyManager(clientManagerDirectoryName);
-            deleteTorWorkingDirectory(clientManager.getWorkingDirectory());
+            deleteTorWorkingDirectory(clientManager.getContext().getConfig().getConfigDir());
             clientManager.setup();
 
             assertTrue(clientManager.startWithRepeat(TOTAL_SECONDS_PER_TOR_STARTUP, TOTAL_TRIES_PER_TOR_STARTUP, true));
@@ -141,7 +141,7 @@ public class TorOnionProxySmokeTest  {
             // in which case we would actually be testing against a new hidden service which would
             // remove the point of this test. So we check that they are the same.
             assertEquals(runHiddenServiceTest(hiddenServiceManager, clientManager), onionAddress);
-        } finally {
+        }  finally {
             if (hiddenServiceManager != null) {
                 hiddenServiceManager.stop();
             }

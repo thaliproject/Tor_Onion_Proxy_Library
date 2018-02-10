@@ -74,10 +74,32 @@ import java.io.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-public class FileUtilities {
+public final class FileUtilities {
     private static final Logger LOG = LoggerFactory.getLogger(FileUtilities.class);
 
     private FileUtilities() {}
+
+    public static boolean setToReadOnlyPermissions(File file) {
+        return file.setReadable(false, false) &&
+                file.setWritable(false, false) &&
+                file.setExecutable(false, false) &&
+
+                file.setReadable(true, true) &&
+                file.setWritable(true, true) &&
+                file.setExecutable(true, true);
+    }
+
+    /**
+     * Sets readable/executable for all users and writable by owner
+     *
+     * @param file the file to set the permissions on
+     */
+    public static void setPerms(File file) {
+        file.setReadable(true);
+        file.setExecutable(true);
+        file.setWritable(false);
+        file.setWritable(true, true);
+    }
 
     /**
      * Closes both input and output streams when done.

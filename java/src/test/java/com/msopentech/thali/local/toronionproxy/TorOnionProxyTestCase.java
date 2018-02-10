@@ -17,12 +17,15 @@ import com.msopentech.thali.java.toronionproxy.JavaOnionProxyContext;
 import com.msopentech.thali.toronionproxy.OnionProxyManager;
 import junit.framework.TestCase;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
 public class TorOnionProxyTestCase extends TestCase {
+
     public OnionProxyManager getOnionProxyManager(String workingSubDirectoryName) {
         try {
+
             return new OnionProxyManager(
                     new JavaOnionProxyContext(
                             Files.createTempDirectory(workingSubDirectoryName).toFile()));

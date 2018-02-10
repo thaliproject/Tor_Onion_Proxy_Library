@@ -13,32 +13,23 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.android.toronionproxy;
 
-import android.content.Context;
 import com.msopentech.thali.toronionproxy.OnionProxyContext;
+import com.msopentech.thali.toronionproxy.TorInstaller;
 import com.msopentech.thali.toronionproxy.WriteObserver;
 
-import org.torproject.android.binary.TorResourceInstaller;
+import android.content.Context;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.concurrent.TimeoutException;
 
 import static android.content.Context.MODE_PRIVATE;
-import static org.torproject.android.binary.TorResourceInstaller.streamToFile;
-import static org.torproject.android.binary.TorServiceConstants.TORRC_ASSET_KEY;
-import static org.torproject.android.binary.TorServiceConstants.TOR_ASSET_KEY;
 
 public class AndroidOnionProxyContext extends OnionProxyContext {
 
     private final Context context;
 
-    private final TorResourceInstaller resourceInstaller;
-
-    public AndroidOnionProxyContext(Context context, String workingSubDirectoryName) {
-        super(context.getDir(workingSubDirectoryName, MODE_PRIVATE));
+    public AndroidOnionProxyContext(Context context, String installDir) {
+        super(AndroidTorConfig.createConfig(context.getDir(installDir, MODE_PRIVATE)));
         this.context = context;
-        this.resourceInstaller = new TorResourceInstaller(context, getWorkingDirectory());
     }
 
     @Override
@@ -47,22 +38,8 @@ public class AndroidOnionProxyContext extends OnionProxyContext {
     }
 
     @Override
-    public String getTorExecutableFileName() {
-        return TOR_ASSET_KEY;
-    }
-
-    @Override
-    public boolean setup() throws IOException {
-        try {
-            if(resourceInstaller.installResources()) {
-                InputStream is = context.getAssets().open(TORRC_ASSET_KEY);
-                File outFile = new File(getWorkingDirectory(), TORRC_ASSET_KEY);
-                return streamToFile(is, outFile, false, false);
-            }
-            return false;
-        } catch (TimeoutException e) {
-            throw new IOException(e);
-        }
+    public TorInstaller getInstaller() {
+        return new AndroidTorInstaller(context, getConfig().getConfigDir());
     }
 
     @Override

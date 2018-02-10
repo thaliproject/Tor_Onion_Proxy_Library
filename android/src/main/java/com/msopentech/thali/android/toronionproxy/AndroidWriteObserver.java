@@ -29,8 +29,9 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.android.toronionproxy;
 
-import android.os.FileObserver;
 import com.msopentech.thali.toronionproxy.WriteObserver;
+
+import android.os.FileObserver;
 
 import java.io.File;
 import java.util.concurrent.CountDownLatch;

@@ -13,6 +13,9 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.toronionproxy;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.io.IOException;
 
@@ -23,92 +26,159 @@ import java.io.IOException;
  */
 abstract public class OnionProxyContext {
 
-    protected final static String HIDDENSERVICE_DIRECTORY_NAME = "hiddenservice";
-    protected final static String GEO_IP_NAME = "geoip";
-    protected final static String GEO_IPV_6_NAME = "geoip6";
-    protected final static String TORRC_NAME = "torrc";
-    protected final File workingDirectory;
-    protected final File geoIpFile;
-    protected final File geoIpv6File;
-    protected final File torrcFile;
-    protected final File torExecutableFile;
-    protected final File cookieFile;
-    protected final File hostnameFile;
+
+    protected static final Logger LOG = LoggerFactory.getLogger(OnionProxyContext.class);
 
     /**
-     * Constructs instance of <code>OnionProxyContext</code>
-     *
-     * @param workingDirectory the working/installation directory for tor
+     * Tor configuration info used for running and installing tor
      */
-    public OnionProxyContext(File workingDirectory) {
-        if(workingDirectory == null) {
-            throw new IllegalArgumentException("working directory is null");
+    protected final TorConfig config;
+
+    private final Object dataDirLock = new Object();
+
+    private final Object cookieLock = new Object();
+
+    private final Object hostnameLock = new Object();
+
+    /**
+     * Constructs instance of <code>OnionProxyContext</code> with specified configDir. Use this constructor when
+     * all tor files (including the executable) are under a single directory. Currently, this is used with installers
+     * that assemble all necessary files into one location.
+     *
+     * @param configDir
+     * @throws IllegalArgumentException if specified config in null
+     */
+    public OnionProxyContext(File configDir) {
+        this(new TorConfig.Builder(configDir).build());
+    }
+
+    /**
+     * Constructs instance of <code>OnionProxyContext</code> with the specified torConfig. Typically this constructor
+     * will be used when tor is currently installed on the system, with the tor executable and config files in different
+     * locations.
+     *
+     * @param torConfig tor configuration info used for running and installing tor
+     * @throws IllegalArgumentException if specified config in null
+     */
+    public OnionProxyContext(TorConfig torConfig) {
+        if (torConfig == null) {
+            throw new IllegalArgumentException("torConfig is null");
         }
-        this.workingDirectory = workingDirectory;
-        geoIpFile = new File(getWorkingDirectory(), GEO_IP_NAME);
-        geoIpv6File = new File(getWorkingDirectory(), GEO_IPV_6_NAME);
-        torrcFile = new File(getWorkingDirectory(), TORRC_NAME);
-        torExecutableFile = new File(getWorkingDirectory(), getTorExecutableFileName());
-        cookieFile = new File(getWorkingDirectory(), ".tor/control_auth_cookie");
-        hostnameFile = new File(getWorkingDirectory(), "/" + HIDDENSERVICE_DIRECTORY_NAME + "/hostname");
+        this.config = torConfig;
     }
 
 
-    public final File getGeoIpFile() {
-        return geoIpFile;
-    }
-
-    public final File getGeoIpv6File() {
-        return geoIpv6File;
-    }
-
-    public final File getTorrcFile() {
-        return torrcFile;
-    }
-
-    public final File getCookieFile() {
-        return cookieFile;
-    }
-
-    public final File getHostNameFile() {
-        return hostnameFile;
-    }
-
-    public final File getTorExecutableFile() {
-        return torExecutableFile;
-    }
-
-    public final File getWorkingDirectory() {
-        return workingDirectory;
-    }
-
-    public final String getHiddenserviceDirectoryName() {
-        return HIDDENSERVICE_DIRECTORY_NAME;
+    /**
+     * Gets tor configuration info used for running and installing tor
+     *
+     * @return tor config info
+     */
+    public final TorConfig getConfig() {
+        return config;
     }
 
     /**
-     * Sets up and installs the tor environment. Files will install to the workingDirectory
+     * Creates the configured tor data directory
      *
-     * @return true if installation a success, otherwise false
+     * @return true is directory already exists or has been successfully created, otherwise false
      */
-    public abstract boolean setup() throws IOException;
+    public final boolean createDataDir() {
+        synchronized (dataDirLock) {
+            return config.getDataDir().exists() || config.getDataDir().mkdirs();
+        }
+    }
 
+    /**
+     * Deletes the configured tor data directory
+     */
+    public final void deleteDataDir()  {
+        synchronized (dataDirLock) {
+            for (File file : config.getDataDir().listFiles()) {
+                if (file.isDirectory()) {
+                    if (!file.getAbsolutePath().equals(config.getHiddenServiceDir().getAbsolutePath())) {
+                        FileUtilities.recursiveFileDelete(file);
+                    }
+                } else {
+                    if (!file.delete()) {
+                        throw new RuntimeException("Could not delete file " + file.getAbsolutePath());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Creates an empty cookie auth file
+     *
+     * @return true if cookie file is created, otherwise false
+     */
+    public final boolean createCookieAuthFile() {
+        synchronized (cookieLock) {
+            File cookieAuthFile = config.getCookieAuthFile();
+            if (!cookieAuthFile.getParentFile().exists() &&
+                    !cookieAuthFile.getParentFile().mkdirs()) {
+                LOG.warn("Could not create cookieFile parent directory");
+                return false;
+            }
+
+            try {
+                return (cookieAuthFile.exists() || cookieAuthFile.createNewFile());
+            } catch (IOException e) {
+                LOG.warn("Could not create cookieFile");
+                return false;
+            }
+        }
+    }
+
+    public final boolean createHostnameFile() {
+        synchronized (hostnameLock) {
+            File hostnameFile = config.getHostnameFile();
+            if (!hostnameFile.getParentFile().exists() &&
+                    !hostnameFile.getParentFile().mkdirs()) {
+                LOG.warn("Could not create hostnameFile parent directory");
+                return false;
+            }
+
+            try {
+                return (hostnameFile.exists() || hostnameFile.createNewFile());
+            } catch (IOException e) {
+                LOG.warn("Could not create hostnameFile");
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Creates an observer for the configured cookie auth file
+     *
+     * @return write observer for cookie auth file
+     */
+    public final WriteObserver createCookieAuthFileObserver() throws IOException {
+        synchronized (cookieLock) {
+            return generateWriteObserver(config.getCookieAuthFile());
+        }
+    }
+
+    /**
+     * Creates an observer for the configured hostname file
+     *
+     * @return write observer for hostname file
+     */
+    public final WriteObserver createHostnameDirObserver() throws IOException {
+        synchronized (hostnameLock) {
+            return generateWriteObserver(config.getHostnameFile());
+        }
+    }
+
+    /**
+     * Returns the system process id of the process running this onion proxy
+     *
+     * @return process id
+     */
     public abstract String getProcessId();
 
-    public abstract WriteObserver generateWriteObserver(File file);
+    public abstract WriteObserver generateWriteObserver(File file) throws IOException;
 
-    public abstract String getTorExecutableFileName();
+    public abstract TorInstaller getInstaller();
 
-    @Override
-    public String toString() {
-        return "OnionProxyContext{" +
-                "workingDirectory=" + workingDirectory +
-                ", geoIpFile=" + geoIpFile +
-                ", geoIpv6File=" + geoIpv6File +
-                ", torrcFile=" + torrcFile +
-                ", torExecutableFile=" + torExecutableFile +
-                ", cookieFile=" + cookieFile +
-                ", hostnameFile=" + hostnameFile +
-                '}';
-    }
 }

@@ -41,6 +41,7 @@ import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 
+import static com.msopentech.thali.toronionproxy.FileUtilities.setToReadOnlyPermissions;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
@@ -59,11 +60,14 @@ public class OnionProxyManager {
     };
 
     private static final String OWNER = "__OwningControllerProcess";
-    private static final int COOKIE_TIMEOUT = 3 * 1000; // Milliseconds
+    private static final int COOKIE_TIMEOUT = 10 * 1000; // Milliseconds
     private static final int HOSTNAME_TIMEOUT = 30 * 1000; // Milliseconds
     private static final Logger LOG = LoggerFactory.getLogger(OnionProxyManager.class);
 
-    protected final OnionProxyContext onionProxyContext;
+    private final OnionProxyContext onionProxyContext;
+
+    private final TorConfig config;
+    private final TorInstaller torInstaller;
 
     private volatile Socket controlSocket = null;
 
@@ -72,18 +76,22 @@ public class OnionProxyManager {
     private volatile TorControlConnection controlConnection = null;
     private volatile int control_port;
 
+    /**
+     * Constructs an <code>OnionProxyManager</code> with the specified context
+     *
+     * @param onionProxyContext
+     */
     public OnionProxyManager(OnionProxyContext onionProxyContext) {
+        if(onionProxyContext == null) {
+            throw new IllegalArgumentException("onionProxyContext is null");
+        }
+        this.torInstaller = onionProxyContext.getInstaller();
         this.onionProxyContext = onionProxyContext;
+        this.config = onionProxyContext.getConfig();
     }
 
-    private static boolean resetToReadPermissions(File file) {
-        return file.setReadable(false, false) &&
-                file.setWritable(false, false) &&
-                file.setExecutable(false, false) &&
-
-                file.setReadable(true, true) &&
-                file.setWritable(true, true) &&
-                file.setExecutable(true, true);
+    public final OnionProxyContext getContext() {
+        return onionProxyContext;
     }
 
     /**
@@ -107,9 +115,7 @@ public class OnionProxyManager {
 
         try {
             for (int retryCount = 0; retryCount < numberOfRetries; ++retryCount) {
-                if (!start(enableLogging)) {
-                    return false;
-                }
+                start(enableLogging);
                 enableNetwork(true);
 
                 // We will check every second to see if boot strapping has finally finished
@@ -129,7 +135,9 @@ public class OnionProxyManager {
                 // if we delete everything.
                 // So our compromise is that we try to start the Tor OP 'as is' on the first round and after that
                 // we delete all the files.
-                deleteAllFilesButHiddenServices();
+                // It can take a little bit for the Tor OP to detect the connection is dead and kill itself
+                Thread.sleep(1000, 0);
+                onionProxyContext.deleteDataDir();
             }
 
             return false;
@@ -172,42 +180,30 @@ public class OnionProxyManager {
      * @param localPort         The local port that the hidden service will relay connections to
      * @return The hidden service's onion address in the form X.onion.
      * @throws java.io.IOException - File errors
+     * @throws IllegalStateException if control service is not running
      */
     public synchronized String publishHiddenService(int hiddenServicePort, int localPort) throws IOException {
         if (controlConnection == null) {
-            throw new RuntimeException("Service is not running.");
-        }
-
-        List<ConfigEntry> currentHiddenServices = controlConnection.getConf("HiddenServiceOptions");
-
-        if (!(currentHiddenServices.size() == 1 &&
-                currentHiddenServices.get(0).key.compareTo("HiddenServiceOptions") == 0 &&
-                currentHiddenServices.get(0).value.compareTo("") == 0)) {
-            throw new RuntimeException("Sorry, only one hidden service to a customer and we already have one. Please send complaints to https://github.com/thaliproject/Tor_Onion_Proxy_Library/issues/5 with your scenario so we can justify fixing this.");
+            throw new IllegalStateException("Service is not running.");
         }
 
         LOG.info("Creating hidden service");
-        File hostnameFile = onionProxyContext.getHostNameFile();
-
-        if (!hostnameFile.getParentFile().exists() &&
-                !hostnameFile.getParentFile().mkdirs()) {
-            throw new RuntimeException("Could not create hostnameFile parent directory");
-        }
-
-        if (!hostnameFile.exists() && !hostnameFile.createNewFile()) {
-            throw new RuntimeException("Could not create hostnameFile");
+        if(!onionProxyContext.createHostnameFile()) {
+            throw new IOException("Could not create hostnameFile");
         }
 
         // Watch for the hostname file being created/updated
-        WriteObserver hostNameFileObserver = onionProxyContext.generateWriteObserver(hostnameFile);
-        // Use the control connection to update the Tor config
-        File file = hostnameFile.getParentFile();
-        if (!resetToReadPermissions(file)) {
-            throw new RuntimeException("Unable to set permissions on hostName file");
+        WriteObserver hostNameFileObserver = onionProxyContext.createHostnameDirObserver();
+
+        File hostnameFile = config.getHostnameFile();
+        File hostnameDir = hostnameFile.getParentFile();
+        if (!setToReadOnlyPermissions(hostnameDir)) {
+            throw new RuntimeException("Unable to set permissions on hostName dir");
         }
 
+        // Use the control connection to update the Tor config
         List<String> config = Arrays.asList(
-                "HiddenServiceDir " + file.getAbsolutePath(),
+                "HiddenServiceDir " + hostnameDir.getAbsolutePath(),
                 "HiddenServicePort " + hiddenServicePort + " 127.0.0.1:" + localPort);
         controlConnection.setConf(config);
         controlConnection.saveConf();
@@ -265,7 +261,7 @@ public class OnionProxyManager {
      */
     public synchronized void enableNetwork(boolean enable) throws IOException {
         if (controlConnection == null) {
-            throw new RuntimeException("Tor is not running!");
+            throw new IllegalStateException("Tor is not running!");
         }
         LOG.info("Enabling network: " + enable);
         controlConnection.setConf("DisableNetwork", enable ? "0" : "1");
@@ -280,7 +276,7 @@ public class OnionProxyManager {
      */
     private synchronized boolean isNetworkEnabled() throws IOException {
         if (controlConnection == null) {
-            throw new RuntimeException("Tor is not running!");
+            throw new IllegalStateException("Tor is not running!");
         }
 
         List<ConfigEntry> disableNetworkSettingValues = controlConnection.getConf("DisableNetwork");
@@ -327,33 +323,25 @@ public class OnionProxyManager {
      * @return true if tor is already running OR tor has been successfully started
      * @throws IOException
      */
-    public synchronized boolean start(boolean enableLogs) throws IOException {
+    public synchronized void start(boolean enableLogs) throws IOException {
          if (controlConnection != null) {
-            LOG.info("Tor is already running");
-            return true;
+            return;
         }
 
         LOG.info("Starting Tor");
-        File cookieFile = onionProxyContext.getCookieFile();
-        if (!cookieFile.getParentFile().exists() &&
-                !cookieFile.getParentFile().mkdirs()) {
-            LOG.warn("Could not create cookieFile parent directory");
-            return false;
+        if(!onionProxyContext.createCookieAuthFile()) {
+            throw new IOException("Failed to create cookie auth file: "
+                    + onionProxyContext.getConfig().getCookieAuthFile().getAbsolutePath());
         }
 
-        if (!cookieFile.exists() && !cookieFile.createNewFile()) {
-            LOG.warn("Could not create cookieFile");
-            return false;
-        }
+        File cookieFile = config.getCookieAuthFile();
+        WriteObserver cookieObserver = onionProxyContext.createCookieAuthFileObserver();
 
-        File workingDirectory = onionProxyContext.getWorkingDirectory();
-        // Watch for the auth cookie file being created/updated
-        WriteObserver cookieObserver = onionProxyContext.generateWriteObserver(cookieFile);
         // Start a new Tor process
-        String torPath = onionProxyContext.getTorExecutableFile().getAbsolutePath();
-        String configPath = onionProxyContext.getTorrcFile().getAbsolutePath();
+        String torPath = config.getTorExecutableFile().getAbsolutePath();
+        String configPath = config.getTorrcFile().getAbsolutePath();
         String pid = onionProxyContext.getProcessId();
-        String[] cmd = {torPath, "-f", configPath};
+        String[] cmd = {torPath, "-f", configPath, OWNER, pid};
         String[] env = getEnvironmentArgsForExec();
         ProcessBuilder processBuilder = new ProcessBuilder(cmd);
         setEnvironmentArgsAndWorkingDirectoryForStart(processBuilder);
@@ -376,15 +364,16 @@ public class OnionProxyManager {
                 torProcess = null;
                 if (exit != 0) {
                     LOG.warn("Tor exited with value " + exit);
-                    return false;
+                    throw new IOException("Tori exited with value: " + exit);
                 }
             }
 
             // Wait for the auth cookie file to be created/updated
-            if (!cookieObserver.poll(COOKIE_TIMEOUT, MILLISECONDS)) {
+            if (cookieFile.length() == 0 && !cookieObserver.poll(COOKIE_TIMEOUT, MILLISECONDS)) {
                 LOG.warn("Auth cookie not created");
-                FileUtilities.listFilesToLog(workingDirectory);
-                return false;
+                FileUtilities.listFilesToLog(config.getDataDir());
+                throw new IOException("Auth cookie file not created: " + cookieFile.getAbsolutePath()
+                        + ", len = " + cookieFile.length());
             }
 
             // Now we should be able to connect to the new process
@@ -407,32 +396,23 @@ public class OnionProxyManager {
 
             // We only set the class property once the connection is in a known good state
             this.controlConnection = controlConnection;
-            return true;
+            LOG.info("Completed starting of tor");
         } catch (SecurityException e) {
             LOG.warn(e.toString(), e);
-            return false;
+            throw new IOException(e);
         } catch (InterruptedException e) {
             LOG.warn("Interrupted while starting Tor", e);
             Thread.currentThread().interrupt();
-            return false;
+            throw new IOException(e);
         } finally {
             if (controlConnection == null && torProcess != null) {
                 // It's possible that something 'bad' could happen after we executed exec but before we takeOwnership()
                 // in which case the Tor OP will hang out as a zombie until this process is killed. This is problematic
                 // when we want to do things like
+                LOG.warn("Destroying tor process");
                 torProcess.destroy();
             }
         }
-    }
-
-    /**
-     * Returns the root directory in which the Tor Onion Proxy keeps its files. This is mostly intended
-     * for debugging purposes.
-     *
-     * @return Working directory for Tor Onion Proxy files
-     */
-    public File getWorkingDirectory() {
-        return onionProxyContext.getWorkingDirectory();
     }
 
     private void eatStream(final InputStream inputStream, final boolean stdError, final CountDownLatch countDownLatch) {
@@ -470,21 +450,6 @@ public class OnionProxyManager {
         }.start();
     }
 
-    private void deleteAllFilesButHiddenServices() throws InterruptedException {
-        // It can take a little bit for the Tor OP to detect the connection is dead and kill itself
-        Thread.sleep(1000, 0);
-        for (File file : getWorkingDirectory().listFiles()) {
-            if (file.isDirectory()) {
-                if (!file.getName().equals(onionProxyContext.getHiddenserviceDirectoryName())) {
-                    FileUtilities.recursiveFileDelete(file);
-                }
-            } else {
-                if (!file.delete()) {
-                    throw new RuntimeException("Could not delete file " + file.getAbsolutePath());
-                }
-            }
-        }
-    }
 
     /**
      * Sets environment variables and working directory needed for Tor
@@ -492,16 +457,16 @@ public class OnionProxyManager {
      * @param processBuilder we will call start on this to run Tor
      */
     private void setEnvironmentArgsAndWorkingDirectoryForStart(ProcessBuilder processBuilder) {
-        processBuilder.directory(getWorkingDirectory());
+        processBuilder.directory(config.getConfigDir());
         Map<String, String> environment = processBuilder.environment();
-        environment.put("HOME", getWorkingDirectory().getAbsolutePath());
+        environment.put("HOME", config.getHomeDir().getAbsolutePath());
         switch (OsData.getOsType()) {
             case LINUX_32:
             case LINUX_64:
                 // We have to provide the LD_LIBRARY_PATH because when looking for dynamic libraries
                 // Linux apparently will not look in the current directory by default. By setting this
                 // environment variable we fix that.
-                environment.put("LD_LIBRARY_PATH", getWorkingDirectory().getAbsolutePath());
+                environment.put("LD_LIBRARY_PATH", config.getLibraryPath().getAbsolutePath());
                 break;
             default:
                 break;
@@ -510,14 +475,14 @@ public class OnionProxyManager {
 
     private String[] getEnvironmentArgsForExec() {
         List<String> envArgs = new ArrayList<>();
-        envArgs.add("HOME=" + getWorkingDirectory().getAbsolutePath());
+        envArgs.add("HOME=" + config.getHomeDir().getAbsolutePath());
         switch (OsData.getOsType()) {
             case LINUX_32:
             case LINUX_64:
                 // We have to provide the LD_LIBRARY_PATH because when looking for dynamic libraries
                 // Linux apparently will not look in the current directory by default. By setting this
                 // environment variable we fix that.
-                envArgs.add("LD_LIBRARY_PATH=" + getWorkingDirectory().getAbsolutePath());
+                envArgs.add("LD_LIBRARY_PATH=" + config.getLibraryPath().getAbsolutePath());
                 break;
             default:
                 break;
@@ -525,8 +490,15 @@ public class OnionProxyManager {
         return envArgs.toArray(new String[envArgs.size()]);
     }
 
+    /**
+     * Setups and installs any files needed to run tor. If the tor files are already on the system, this does not
+     * need to be invoked.
+     *
+     * @return true if tor installation is successful, otherwise false
+     * @throws IOException
+     */
     public boolean setup() throws IOException {
-        return onionProxyContext.setup();
+        return torInstaller != null && torInstaller.setup();
     }
 
 }

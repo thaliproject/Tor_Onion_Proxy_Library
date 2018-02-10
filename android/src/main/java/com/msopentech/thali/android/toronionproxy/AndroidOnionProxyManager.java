@@ -48,9 +48,11 @@ import static android.net.ConnectivityManager.CONNECTIVITY_ACTION;
 import static android.net.ConnectivityManager.EXTRA_NO_CONNECTIVITY;
 
 public class AndroidOnionProxyManager extends OnionProxyManager {
+
     private static final Logger LOG = LoggerFactory.getLogger(AndroidOnionProxyManager.class);
 
     private volatile BroadcastReceiver networkStateReceiver;
+
     private final Context context;
 
     public AndroidOnionProxyManager(Context context, String workingSubDirectoryName) {
@@ -59,15 +61,12 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
     }
 
     @Override
-    public synchronized boolean start(boolean enableLogs) throws IOException {
-        if (super.start(enableLogs)) {
-            // Register to receive network status events
-            networkStateReceiver = new NetworkStateReceiver();
-            IntentFilter filter = new IntentFilter(CONNECTIVITY_ACTION);
-            context.registerReceiver(networkStateReceiver, filter);
-            return true;
-        }
-        return false;
+    public synchronized void start(boolean enableLogs) throws IOException {
+        super.start(enableLogs);
+        // Register to receive network status events
+        networkStateReceiver = new NetworkStateReceiver();
+        IntentFilter filter = new IntentFilter(CONNECTIVITY_ACTION);
+        context.registerReceiver(networkStateReceiver, filter);
     }
 
     @Override
@@ -78,37 +77,44 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
             if (networkStateReceiver != null) {
                 try {
                     context.unregisterReceiver(networkStateReceiver);
-                } catch(IllegalArgumentException e) {
+                } catch (IllegalArgumentException e) {
                     // There is a race condition where if someone calls stop before installAndStartTorOp is done
                     // then we could get an exception because the network state receiver might not be properly
                     // registered.
-                    LOG.info("Someone tried to call stop before we had finished registering the receiver", e);
+                    LOG.info(
+                            "Someone tried to call stop before we had finished registering the receiver",
+                            e);
                 }
             }
         }
     }
 
     private class NetworkStateReceiver extends BroadcastReceiver {
+
         @Override
         public void onReceive(Context ctx, Intent i) {
             try {
-                if(!isRunning()) return;
+                if (!isRunning()) {
+                    return;
+                }
             } catch (IOException e) {
                 LOG.info("Did someone call before Tor was ready?", e);
                 return;
             }
             boolean online = !i.getBooleanExtra(EXTRA_NO_CONNECTIVITY, false);
-            if(online) {
+            if (online) {
                 // Some devices fail to set EXTRA_NO_CONNECTIVITY, double check
                 Object o = ctx.getSystemService(CONNECTIVITY_SERVICE);
                 ConnectivityManager cm = (ConnectivityManager) o;
                 NetworkInfo net = cm.getActiveNetworkInfo();
-                if(net == null || !net.isConnected()) online = false;
+                if (net == null || !net.isConnected()) {
+                    online = false;
+                }
             }
             LOG.info("Online: " + online);
             try {
                 enableNetwork(online);
-            } catch(IOException e) {
+            } catch (IOException e) {
                 LOG.warn(e.toString(), e);
             }
         }
