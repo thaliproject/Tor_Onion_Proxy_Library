@@ -1,105 +1,23 @@
-/*
-Copyright (c) Microsoft Open Technologies, Inc.
-All Rights Reserved
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
-License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
-
-THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED,
-INCLUDING WITHOUT LIMITATION ANY IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
-MERCHANTABLITY OR NON-INFRINGEMENT.
-
-See the Apache 2 License for the specific language governing permissions and limitations under the License.
-*/
-
 apply plugin: 'java'
 apply plugin: 'maven'
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
 
-sourceCompatibility = 1.6
-
-version = "0.0.2"
 group = 'com.msopentech.thali'
+version = '0.0.3'
 
 repositories {
     mavenLocal()
     mavenCentral()
+    jcenter()
 }
 
 dependencies {
-    compile fileTree(dir: '../universal/libs', include: '*.jar')
-    compile 'org.slf4j:slf4j-api:1.7.7'
-    compile 'com.msopentech.thali:ThaliOnionProxyUniversal:' + version
-
-    testCompile 'junit:junit:4.11'
-    testCompile 'org.slf4j:slf4j-simple:1.7.7'
+    implementation 'org.slf4j:slf4j-api:1.7.25'
+    implementation 'org.slf4j:slf4j-simple:1.7.25'
+    implementation 'net.freehaven.tor.control:jtorctl:0.2'
+    implementation project(':universal')
+    testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 
-install {
-    repositories.mavenInstaller {
-        addFilter('briarjtorctl') {artifact, file ->
-            artifact.name == 'briarjtorctl'
-        }
 
-        addFilter('java') {artifact, file ->
-            artifact.name == 'java'
-        }
-
-        pom('java') {
-            artifactId = 'ThaliOnionProxyJava'
-        }
-
-        pom('briarjtorctl') {
-            artifactId = 'BriarJtorctl'
-        }
-
-        pom.project {
-            licenses {
-                license {
-                name 'Apache 2.0'
-                    url 'https://thali.codeplex.com/SourceControl/latest#license.txt'
-                    distribution 'repo'
-                }
-            }
-        }
-    }
-}
-
-test.testLogging.showStandardStreams = true;
-
-task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
-    from sourceSets.main.java.srcDirs
-}
-
-task generateJavadocs(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
-    from javadoc.destinationDir
-}
-
-artifacts {
-    archives jar
-    archives sourcesJar
-    archives generateJavadocs
-    archives file: file('../universal/libs/jtorctl-briar.jar'), name: 'briarjtorctl', type: 'jar'
-}
-
-// Copying content from Android over to Java
-task deleteSourceFiles(type: Delete) {
-    delete 'src/main/resources/torrc'
-    delete 'src/main/resources/geoip'
-    delete 'src/main/resources/geoip6'
-}
-
-task copyTorOnionProxyTest(type: Copy, dependsOn: deleteSourceFiles) {
-    from "../android/src/androidTest/java/com/msopentech/thali/toronionproxy"
-    into 'src/test/java/com/msopentech/thali/toronionproxy'
-}
-
-task copyResources(type: Copy, dependsOn: copyTorOnionProxyTest) {
-    from "../universal/commonResources/torrc"
-    from "../universal/commonResources/geoip"
-    from "../universal/commonResources/geoip6"
-    into 'src/main/resources'
-}
-
-classes.dependsOn(copyResources)
-testClasses.dependsOn(copyResources)

@@ -13,31 +13,32 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.java.toronionproxy;
 
-import com.msopentech.thali.toronionproxy.OnionProxyContext;
-import com.msopentech.thali.toronionproxy.WriteObserver;
+import com.msopentech.thali.toronionproxy.*;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 
-public class JavaOnionProxyContext extends OnionProxyContext {
+public final class JavaOnionProxyContext extends OnionProxyContext {
 
-    public JavaOnionProxyContext(File workingDirectory) {
-        super(workingDirectory);
+    /**
+     * Constructs a Java specific <code>OnionProxyContext</code>
+     * @param config
+     */
+    public JavaOnionProxyContext(TorConfig config) {
+        super(config);
+    }
+
+    public JavaOnionProxyContext(File configDir) {
+        super(configDir);
     }
 
     @Override
-    public WriteObserver generateWriteObserver(File file) {
-        try {
-            return new JavaWatchObserver(file);
-        } catch (IOException e) {
-            throw new RuntimeException("Could not create JavaWatchObserver", e);
-        }
+    public WriteObserver generateWriteObserver(File file) throws IOException {
+        return new JavaWatchObserver(file);
     }
 
     @Override
-    protected InputStream getAssetOrResourceByName(String fileName) throws IOException {
-        return getClass().getResourceAsStream("/" + fileName);
+    public TorInstaller getInstaller() {
+        return new JavaTorInstaller(this);
     }
 
     @Override

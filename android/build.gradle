@@ -1,91 +1,87 @@
-/*
-Copyright (c) Microsoft Open Technologies, Inc.
-All Rights Reserved
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
-License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
-
-THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED,
-INCLUDING WITHOUT LIMITATION ANY IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
-MERCHANTABLITY OR NON-INFRINGEMENT.
-
-See the Apache 2 License for the specific language governing permissions and limitations under the License.
-*/
+apply plugin: 'com.android.library'
+apply plugin: 'maven'
+apply plugin: 'maven-publish'
 
 buildscript {
     repositories {
-    	jcenter()
         mavenLocal()
         mavenCentral()
+        google()
+        jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:2.1.0-rc1'
-        classpath 'com.github.dcendents:android-maven-gradle-plugin:1.3'
+        classpath 'com.android.tools.build:gradle:3.0.1'
     }
 }
 
-apply plugin: 'com.android.library'
+android {
+    compileSdkVersion 26
 
-version = "0.0.2"
-group = 'com.msopentech.thali'
-archivesBaseName = 'ThaliOnionProxyAndroid'
+    defaultConfig {
+        minSdkVersion 21
+        targetSdkVersion 26
+        versionCode 1
+        versionName "0.0.3"
+
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+publishing {
+    publications {
+        android(MavenPublication) {
+            groupId 'com.msopentech.thali.toronionproxy.android'
+            artifactId 'android'
+            version '0.0.3'
+            artifact(sourceJar)
+            artifact("$buildDir/outputs/aar/android-release.aar")
+            pom.withXml {
+                def dependenciesNode = asNode().appendNode('dependencies')
+                //Iterate over the compile dependencies (we don't want the test ones), adding a <dependency> node for each
+                configurations.compile.allDependencies.each {
+                    if(it.group != null && (it.name != null || "unspecified".equals(it.name)) && it.version != null)
+                    {
+                        def dependencyNode = dependenciesNode.appendNode('dependency')
+                        dependencyNode.appendNode('groupId', it.group)
+                        dependencyNode.appendNode('artifactId', it.name)
+                        dependencyNode.appendNode('version', it.version)
+                    }
+                }
+            }
+        }
+    }
+}
+
+task sourceJar(type: Jar) {
+    from android.sourceSets.main.java.srcDirs
+    classifier "source"
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'com.msopentech.thali:universal:0.0.3'
+    implementation 'org.slf4j:slf4j-api:1.7.25'
+    implementation 'org.slf4j:slf4j-android:1.7.25'
+    implementation 'org.torproject:tor-android-binary:0.3.1.9a'
+    implementation 'com.android.support:appcompat-v7:26.1.0'
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'com.android.support.test:runner:1.0.1'
+    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
+}
 
 repositories {
     mavenLocal()
     mavenCentral()
+    google()
+    jcenter()
+    maven { url "https://raw.githubusercontent.com/guardianproject/gpmaven/master" }
+
 }
-
-android {
-    compileSdkVersion 23
-    buildToolsVersion "23.0.2"
-
-    defaultConfig {
-        minSdkVersion 16 // Please see the readme if you need Sdk support below 16
-        targetSdkVersion 21
-    }
-
-    // Needed to work around https://code.google.com/p/android/issues/detail?id=61573#c14
-    packagingOptions {
-        exclude 'META-INF/LICENSE'
-        exclude 'META-INF/NOTICE'
-        exclude 'META-INF/ASL2.0'
-        exclude 'META-INF/NOTICE.txt' //https://groups.google.com/forum/#!topic/adt-dev/bl5Rc4Szpzg
-        exclude 'META-INF/LICENSE.txt'
-    }
-}
-
-dependencies {
-    compile fileTree(dir: '../universal/libs', include: '*.jar')
-    compile project(':universal')
-    compile 'org.slf4j:slf4j-api:1.7.7'
-    compile 'com.msopentech.thali:ThaliOnionProxyUniversal:' + version
-
-    androidTestCompile 'org.slf4j:slf4j-android:1.7.7'
-}
-
-apply plugin: 'com.github.dcendents.android-maven'
-
-task sourcesJar(type: Jar) {
-    classifier = 'sources'
-    from android.sourceSets.main.java.srcDirs
-}
-
-artifacts {
-    archives sourcesJar
-}
-
-task deleteSourceFiles(type: Delete) {
-    delete 'src/main/assets/geoip'
-    delete 'src/main/assets/geoip6'
-    delete 'src/main/assets/torrc'
-}
-
-task copyResources(type: Copy, dependsOn: deleteSourceFiles) {
-    from "../universal/commonResources/torrc"
-    from "../universal/commonResources/geoip"
-    from "../universal/commonResources/geoip6"
-    into 'src/main/assets'
-}
-
-// I tried to depend on assemble directly and when I would run debug tests the dependency didn't work right
-preBuild.dependsOn(copyResources)
-

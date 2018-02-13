@@ -78,7 +78,8 @@ public class Utilities {
         if (firstByte != (byte)0x00 || secondByte != (byte)0x5a) {
             socket.close();
             throw new IOException("SOCKS4a connect failed, got " + firstByte + " - " + secondByte +
-                    ", but expected 0x00 - 0x5a");
+                    ", but expected 0x00 - 0x5a:, networkHost= " + networkHost + ", networkPort = " + networkPort
+                    + ", socksHost=" + socksHost + ",socksPort=" + socksPort);
         }
         inputStream.readShort();
         inputStream.readInt();

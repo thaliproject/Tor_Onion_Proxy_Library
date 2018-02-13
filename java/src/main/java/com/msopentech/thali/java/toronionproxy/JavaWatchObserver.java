@@ -62,7 +62,7 @@ public class JavaWatchObserver implements WriteObserver {
 
         watchService = FileSystems.getDefault().newWatchService();
         // Note that poll depends on us only registering events that are of type path
-        if (OsData.getOsType() != OsData.OsType.Mac) {
+        if (OsData.getOsType() != OsData.OsType.MAC) {
             key = fileToWatch.getParentFile().toPath().register(watchService, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE,
                     StandardWatchEventKinds.ENTRY_MODIFY);
         } else {

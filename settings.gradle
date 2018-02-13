@@ -1,3 +1,2 @@
-include 'universal'
-include 'android'
-include 'java'
+rootProject.name = 'project'
+include 'universal', 'java'

@@ -67,9 +67,15 @@ http://www.gnu.org/licenses/lgpl.html
 
 package com.msopentech.thali.toronionproxy;
 
-import com.msopentech.thali.local.toronionproxy.TorOnionProxyTestCase;
+import com.msopentech.thali.android.toronionproxy.AndroidOnionProxyManager;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import android.support.test.filters.LargeTest;
+import android.support.test.runner.AndroidJUnit4;
 
 import java.io.*;
 import java.net.*;
@@ -77,18 +83,28 @@ import java.util.Calendar;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
-public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
+import static android.support.test.InstrumentationRegistry.getContext;
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertTrue;
+
+@RunWith(AndroidJUnit4.class)
+@LargeTest
+public class TorOnionProxySmokeTest  {
     private static final int TOTAL_SECONDS_PER_TOR_STARTUP = 4 * 60;
     private static final int TOTAL_TRIES_PER_TOR_STARTUP = 5;
     private static final int WAIT_FOR_HIDDEN_SERVICE_MINUTES = 3;
     private static final Logger LOG = LoggerFactory.getLogger(TorOnionProxySmokeTest.class);
 
+    public OnionProxyManager getOnionProxyManager(String workingSubDirectoryName) {
+        return new AndroidOnionProxyManager(getContext(), workingSubDirectoryName);
+    }
     /**
      * Start two TorOPs, one for a hidden service and one for a client. Have the hidden service op stop and start
      * and see if the client can get connected again.
      * @throws IOException
      * @throws InterruptedException
      */
+    @Test
     public void testHiddenServiceRecycleTime() throws IOException, InterruptedException {
         String hiddenServiceManagerDirectoryName = "hiddenservicemanager";
         String clientManagerDirectoryName = "clientmanager";
@@ -98,14 +114,18 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
             // Note: Normally you never want to call anything like deleteTorWorkingDirectory since this
             // is where all the cached data about the Tor network is kept and it makes connectivity
             // must faster. We are deleting it here just to make sure we are running clean tests.
-            deleteTorWorkingDirectory(hiddenServiceManager.getWorkingDirectory());
-            assertTrue(hiddenServiceManager.startWithRepeat(TOTAL_SECONDS_PER_TOR_STARTUP, TOTAL_TRIES_PER_TOR_STARTUP));
+            deleteTorWorkingDirectory(hiddenServiceManager.getContext().getConfig().getConfigDir());
+            hiddenServiceManager.setup();
+
+            assertTrue(hiddenServiceManager.startWithRepeat(TOTAL_SECONDS_PER_TOR_STARTUP, TOTAL_TRIES_PER_TOR_STARTUP, true));
 
             LOG.warn("Hidden Service Manager is running.");
 
             clientManager = getOnionProxyManager(clientManagerDirectoryName);
-            deleteTorWorkingDirectory(clientManager.getWorkingDirectory());
-            assertTrue(clientManager.startWithRepeat(TOTAL_SECONDS_PER_TOR_STARTUP, TOTAL_TRIES_PER_TOR_STARTUP));
+            deleteTorWorkingDirectory(clientManager.getContext().getConfig().getConfigDir());
+            clientManager.setup();
+
+            assertTrue(clientManager.startWithRepeat(TOTAL_SECONDS_PER_TOR_STARTUP, TOTAL_TRIES_PER_TOR_STARTUP, true));
 
             LOG.warn("Client Manager is running.");
 
@@ -116,12 +136,12 @@ public class TorOnionProxySmokeTest extends TorOnionProxyTestCase {
             // Now take down the hidden service manager and bring it back up with a new descriptor but the
             // same address
             hiddenServiceManager.stop();
-            hiddenServiceManager.startWithRepeat(TOTAL_SECONDS_PER_TOR_STARTUP, TOTAL_TRIES_PER_TOR_STARTUP);
+            hiddenServiceManager.startWithRepeat(TOTAL_SECONDS_PER_TOR_STARTUP, TOTAL_TRIES_PER_TOR_STARTUP, true);
             // It's possible that one of our deletes could have nuked the hidden service directory
             // in which case we would actually be testing against a new hidden service which would
             // remove the point of this test. So we check that they are the same.
             assertEquals(runHiddenServiceTest(hiddenServiceManager, clientManager), onionAddress);
-        } finally {
+        }  finally {
             if (hiddenServiceManager != null) {
                 hiddenServiceManager.stop();
             }
