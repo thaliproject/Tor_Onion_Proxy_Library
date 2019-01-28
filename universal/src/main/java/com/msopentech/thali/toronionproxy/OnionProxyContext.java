@@ -40,6 +40,8 @@ abstract public class OnionProxyContext {
 
     private final Object hostnameLock = new Object();
 
+    private final TorSettings settings;
+
     /**
      * Constructs instance of <code>OnionProxyContext</code> with specified configDir. Use this constructor when
      * all tor files (including the executable) are under a single directory. Currently, this is used with installers
@@ -49,7 +51,7 @@ abstract public class OnionProxyContext {
      * @throws IllegalArgumentException if specified config in null
      */
     public OnionProxyContext(File configDir) {
-        this(new TorConfig.Builder(configDir).build());
+        this(new TorConfig.Builder(configDir).build(), null);
     }
 
     /**
@@ -60,11 +62,12 @@ abstract public class OnionProxyContext {
      * @param torConfig tor configuration info used for running and installing tor
      * @throws IllegalArgumentException if specified config in null
      */
-    public OnionProxyContext(TorConfig torConfig) {
+    public OnionProxyContext(TorConfig torConfig, TorSettings settings) {
         if (torConfig == null) {
             throw new IllegalArgumentException("torConfig is null");
         }
         this.config = torConfig;
+        this.settings = settings == null ? new DefaultSettings() : settings;
     }
 
 
@@ -169,6 +172,11 @@ abstract public class OnionProxyContext {
             return generateWriteObserver(config.getHostnameFile());
         }
     }
+
+    public final TorSettings getSettings() {
+        return settings;
+    }
+
 
     /**
      * Returns the system process id of the process running this onion proxy

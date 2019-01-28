@@ -30,6 +30,7 @@ See the Apache 2 License for the specific language governing permissions and lim
 package com.msopentech.thali.android.toronionproxy;
 
 import com.msopentech.thali.toronionproxy.OnionProxyManager;
+import com.msopentech.thali.toronionproxy.TorSettings;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,8 +56,8 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
 
     private final Context context;
 
-    public AndroidOnionProxyManager(Context context, String workingSubDirectoryName) {
-        super(new AndroidOnionProxyContext(context, workingSubDirectoryName));
+    public AndroidOnionProxyManager(Context context, String workingSubDirectoryName, TorSettings settings) {
+        super(new AndroidOnionProxyContext(context, workingSubDirectoryName, settings));
         this.context = context;
     }
 

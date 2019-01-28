@@ -15,6 +15,7 @@ package com.msopentech.thali.android.toronionproxy;
 
 import com.msopentech.thali.toronionproxy.OnionProxyContext;
 import com.msopentech.thali.toronionproxy.TorInstaller;
+import com.msopentech.thali.toronionproxy.TorSettings;
 import com.msopentech.thali.toronionproxy.WriteObserver;
 
 import android.content.Context;
@@ -27,8 +28,8 @@ public class AndroidOnionProxyContext extends OnionProxyContext {
 
     private final Context context;
 
-    public AndroidOnionProxyContext(Context context, String installDir) {
-        super(AndroidTorConfig.createConfig(context.getDir(installDir, MODE_PRIVATE)));
+    public AndroidOnionProxyContext(Context context, String installDir, TorSettings settings) {
+        super(AndroidTorConfig.createConfig(context.getDir(installDir, MODE_PRIVATE)), settings);
         this.context = context;
     }
 
