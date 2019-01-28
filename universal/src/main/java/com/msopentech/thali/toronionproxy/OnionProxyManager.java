@@ -56,7 +56,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  */
 public class OnionProxyManager {
     private static final String[] EVENTS = {
-            "CIRC", "ORCONN", "NOTICE", "WARN", "ERR"
+            "CIRC", "ORCONN", "NOTICE", "WARN", "ERR", "BW", "STATUS_CLIENT"
     };
 
     private static final String OWNER = "__OwningControllerProcess";
