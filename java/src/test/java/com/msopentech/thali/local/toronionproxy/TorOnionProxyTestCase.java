@@ -28,7 +28,7 @@ public class TorOnionProxyTestCase extends TestCase {
 
             return new OnionProxyManager(
                     new JavaOnionProxyContext(
-                            Files.createTempDirectory(workingSubDirectoryName).toFile()));
+                            Files.createTempDirectory(workingSubDirectoryName).toFile()), null);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

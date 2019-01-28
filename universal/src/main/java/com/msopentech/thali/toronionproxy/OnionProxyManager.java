@@ -30,6 +30,7 @@ See the Apache 2 License for the specific language governing permissions and lim
 package com.msopentech.thali.toronionproxy;
 
 import net.freehaven.tor.control.ConfigEntry;
+import net.freehaven.tor.control.EventHandler;
 import net.freehaven.tor.control.TorControlConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,7 +66,7 @@ public class OnionProxyManager {
     private static final Logger LOG = LoggerFactory.getLogger(OnionProxyManager.class);
 
     private final OnionProxyContext onionProxyContext;
-
+    private final EventHandler eventHandler;
     private final TorConfig config;
     private final TorInstaller torInstaller;
 
@@ -81,13 +82,15 @@ public class OnionProxyManager {
      *
      * @param onionProxyContext
      */
-    public OnionProxyManager(OnionProxyContext onionProxyContext) {
+    public OnionProxyManager(OnionProxyContext onionProxyContext, EventHandler eventHandler) {
         if(onionProxyContext == null) {
             throw new IllegalArgumentException("onionProxyContext is null");
         }
         this.torInstaller = onionProxyContext.getInstaller();
         this.onionProxyContext = onionProxyContext;
         this.config = onionProxyContext.getConfig();
+        this.eventHandler = (eventHandler == null) ? new OnionProxyManagerEventHandler() :
+                eventHandler;
     }
 
     public final OnionProxyContext getContext() {
@@ -388,8 +391,7 @@ public class OnionProxyManager {
 
             controlConnection.authenticate(FileUtilities.read(cookieFile));
             controlConnection.resetConf(Collections.singletonList(OWNER));
-            // Register to receive events from the Tor process
-            controlConnection.setEventHandler(new OnionProxyManagerEventHandler());
+            controlConnection.setEventHandler(eventHandler);
             controlConnection.setEvents(Arrays.asList(EVENTS));
 
             // We only set the class property once the connection is in a known good state
