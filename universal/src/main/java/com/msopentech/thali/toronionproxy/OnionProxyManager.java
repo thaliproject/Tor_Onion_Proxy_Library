@@ -128,7 +128,6 @@ public class OnionProxyManager {
         try {
             for (int retryCount = 0; retryCount < numberOfRetries; ++retryCount) {
                 start(enableLogging);
-                enableNetwork(true);
 
                 // We will check every second to see if boot strapping has finally finished
                 for (int secondsWaited = 0; secondsWaited < secondsBeforeTimeOut; ++secondsWaited) {
@@ -430,6 +429,8 @@ public class OnionProxyManager {
 
             // We only set the class property once the connection is in a known good state
             this.controlConnection = controlConnection;
+            enableNetwork(true);
+
             LOG.info("Completed starting of tor");
         } catch (SecurityException e) {
             LOG.warn(e.toString(), e);
