@@ -267,8 +267,12 @@ public class OnionProxyManager {
      * @return True if running
      * @throws java.io.IOException - IO exceptions
      */
-    public synchronized boolean isRunning() throws IOException {
-        return isBootstrapped() && isNetworkEnabled();
+    public synchronized boolean isRunning() {
+        try {
+            return isBootstrapped() && isNetworkEnabled();
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     /**
@@ -279,7 +283,7 @@ public class OnionProxyManager {
      */
     public synchronized void enableNetwork(boolean enable) throws IOException {
         if (controlConnection == null) {
-            throw new IllegalStateException("Tor is not running!");
+            return;
         }
         LOG.info("Enabling network: " + enable);
         controlConnection.setConf("DisableNetwork", enable ? "0" : "1");
@@ -294,7 +298,7 @@ public class OnionProxyManager {
      */
     private synchronized boolean isNetworkEnabled() throws IOException {
         if (controlConnection == null) {
-            throw new IllegalStateException("Tor is not running!");
+            return false;
         }
 
         List<ConfigEntry> disableNetworkSettingValues = controlConnection.getConf("DisableNetwork");
