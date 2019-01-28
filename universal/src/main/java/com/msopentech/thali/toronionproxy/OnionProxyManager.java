@@ -66,6 +66,7 @@ public class OnionProxyManager {
     private static final Logger LOG = LoggerFactory.getLogger(OnionProxyManager.class);
 
     private final OnionProxyContext onionProxyContext;
+    private final EventBroadcaster eventBroadcaster;
     private final EventHandler eventHandler;
     private final TorConfig config;
     private final TorInstaller torInstaller;
@@ -77,18 +78,25 @@ public class OnionProxyManager {
     private volatile TorControlConnection controlConnection = null;
     private volatile int control_port;
 
+    public OnionProxyManager(OnionProxyContext onionProxyContext) {
+        this(onionProxyContext, null, null);
+    }
+
     /**
      * Constructs an <code>OnionProxyManager</code> with the specified context
      *
      * @param onionProxyContext
      */
-    public OnionProxyManager(OnionProxyContext onionProxyContext, EventHandler eventHandler) {
+    public OnionProxyManager(OnionProxyContext onionProxyContext, EventBroadcaster eventBroadcaster,
+                             EventHandler eventHandler) {
         if(onionProxyContext == null) {
             throw new IllegalArgumentException("onionProxyContext is null");
         }
         this.torInstaller = onionProxyContext.getInstaller();
         this.onionProxyContext = onionProxyContext;
         this.config = onionProxyContext.getConfig();
+        this.eventBroadcaster = (eventBroadcaster == null) ? new DefaultEventBroadcaster() :
+                eventBroadcaster;
         this.eventHandler = (eventHandler == null) ? new OnionProxyManagerEventHandler() :
                 eventHandler;
     }
@@ -235,8 +243,10 @@ public class OnionProxyManager {
                 return;
             }
             LOG.info("Stopping Tor");
+            eventBroadcaster.broadcastNotice("Using control port to shutdown Tor");
             controlConnection.setConf("DisableNetwork", "1");
-            controlConnection.shutdownTor("TERM");
+            controlConnection.shutdownTor("HALT");
+            eventBroadcaster.broadcastNotice("sending HALT signal to Tor process");
         } finally {
             if (controlSocket != null) {
                 controlSocket.close();
@@ -333,6 +343,7 @@ public class OnionProxyManager {
 
         LOG.info("Starting Tor");
         if(!onionProxyContext.createCookieAuthFile()) {
+            eventBroadcaster.broadcastNotice("Tor authentication cookie does not exist yet");
             throw new IOException("Failed to create cookie auth file: "
                     + onionProxyContext.getConfig().getCookieAuthFile().getAbsolutePath());
         }
@@ -366,8 +377,10 @@ public class OnionProxyManager {
                 int exit = torProcess.waitFor();
                 torProcess = null;
                 if (exit != 0) {
+                    eventBroadcaster.broadcastNotice("Tor exited with value" + exit);
+                    eventBroadcaster.getStatus().stopping();
                     LOG.warn("Tor exited with value " + exit);
-                    throw new IOException("Tori exited with value: " + exit);
+                    throw new IOException("Tor exited with value: " + exit);
                 }
             }
 
@@ -375,24 +388,36 @@ public class OnionProxyManager {
             if (cookieFile.length() == 0 && !cookieObserver.poll(COOKIE_TIMEOUT, MILLISECONDS)) {
                 LOG.warn("Auth cookie not created");
                 FileUtilities.listFilesToLog(config.getDataDir());
+                eventBroadcaster.broadcastNotice("Tor authentication cookie file not created");
+                eventBroadcaster.getStatus().stopping();
                 throw new IOException("Auth cookie file not created: " + cookieFile.getAbsolutePath()
                         + ", len = " + cookieFile.length());
             }
 
+            eventBroadcaster.broadcastNotice( "Waiting for control port...");
             // Now we should be able to connect to the new process
             controlPortCountDownLatch.await();
+
+            eventBroadcaster.broadcastNotice( "Connecting to control port: " + control_port);
             controlSocket = new Socket("127.0.0.1", control_port);
 
             // Open a control connection and authenticate using the cookie file
             TorControlConnection controlConnection = new TorControlConnection(controlSocket);
+            eventBroadcaster.broadcastNotice( "SUCCESS connected to Tor control port.");
+
             if (enableLogs) {
                 controlConnection.setDebugging(System.out);
             }
 
             controlConnection.authenticate(FileUtilities.read(cookieFile));
+            eventBroadcaster.broadcastNotice("SUCCESS - authenticated to control port.");
+
             controlConnection.resetConf(Collections.singletonList(OWNER));
+
+            eventBroadcaster.broadcastNotice("adding control port event handler");
             controlConnection.setEventHandler(eventHandler);
             controlConnection.setEvents(Arrays.asList(EVENTS));
+            eventBroadcaster.broadcastNotice("SUCCESS added control port event handler");
 
             // We only set the class property once the connection is in a known good state
             this.controlConnection = controlConnection;
