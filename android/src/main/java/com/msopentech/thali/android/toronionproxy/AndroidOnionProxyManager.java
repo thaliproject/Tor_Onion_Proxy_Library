@@ -94,14 +94,10 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
 
         @Override
         public void onReceive(Context ctx, Intent i) {
-            try {
-                if (!isRunning()) {
-                    return;
-                }
-            } catch (IOException e) {
-                LOG.info("Did someone call before Tor was ready?", e);
+            if (!isRunning()) {
                 return;
             }
+
             boolean online = !i.getBooleanExtra(EXTRA_NO_CONNECTIVITY, false);
             if (online) {
                 // Some devices fail to set EXTRA_NO_CONNECTIVITY, double check
