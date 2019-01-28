@@ -250,11 +250,14 @@ public class OnionProxyManager {
             controlConnection.shutdownTor("HALT");
             eventBroadcaster.broadcastNotice("sending HALT signal to Tor process");
         } finally {
-            if (controlSocket != null) {
-                controlSocket.close();
-            }
             controlConnection = null;
-            controlSocket = null;
+            if (controlSocket != null) {
+                try {
+                    controlSocket.close();
+                } finally {
+                    controlSocket = null;
+                }
+            }
         }
     }
 
