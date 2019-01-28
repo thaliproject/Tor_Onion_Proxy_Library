@@ -43,6 +43,7 @@ import java.util.*;
 import java.util.concurrent.CountDownLatch;
 
 import static com.msopentech.thali.toronionproxy.FileUtilities.setToReadOnlyPermissions;
+import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
@@ -134,6 +135,7 @@ public class OnionProxyManager {
                     if (!isBootstrapped()) {
                         Thread.sleep(1000, 0);
                     } else {
+                        eventBroadcaster.broadcastNotice("Tor started; process id = " + getTorPid());
                         return true;
                     }
                 }
@@ -526,4 +528,155 @@ public class OnionProxyManager {
         return torInstaller != null && torInstaller.setup();
     }
 
+    public boolean isIPv4LocalHostSocksPortOpen() {
+        try {
+            getIPv4LocalHostSocksPort();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Sets the exit nodes through the tor control connection
+     *
+     * @param exitNodes
+     * @return true if successfully set, otherwise false
+     */
+    public boolean setExitNode(String exitNodes) {
+        //Based on config params from Orbot project
+        if (!hasControlConnection()) {
+            return false;
+        }
+        if (exitNodes == null || exitNodes.isEmpty()) {
+            try {
+                ArrayList<String> resetBuffer = new ArrayList<>();
+                resetBuffer.add("ExitNodes");
+                resetBuffer.add("StrictNodes");
+                controlConnection.resetConf(resetBuffer);
+                controlConnection.setConf("DisableNetwork", "1");
+                controlConnection.setConf("DisableNetwork", "0");
+            } catch (Exception ioe) {
+                LOG.error("Connection exception occurred resetting exits", ioe);
+                return false;
+            }
+        } else {
+            try {
+                controlConnection.setConf("GeoIPFile", config.getGeoIpFile().getCanonicalPath());
+                controlConnection.setConf("GeoIPv6File", config.getGeoIpv6File().getCanonicalPath
+                        ());
+                controlConnection.setConf("ExitNodes", exitNodes);
+                controlConnection.setConf("StrictNodes", "1");
+                controlConnection.setConf("DisableNetwork", "1");
+                controlConnection.setConf("DisableNetwork", "0");
+            } catch (Exception ioe) {
+                LOG.error("Connection exception occurred resetting exits", ioe);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean disableNetwork(boolean isEnabled) {
+        if (!hasControlConnection()) {
+            return false;
+        }
+        try {
+            controlConnection.setConf("DisableNetwork", isEnabled ? "0" : "1");
+            return true;
+        } catch (Exception e) {
+            eventBroadcaster.broadcastDebug("error disabling network "
+                    + e.getLocalizedMessage());
+            return false;
+        }
+    }
+
+    public boolean setNewIdentity() {
+        if (!hasControlConnection()) {
+            return false;
+        }
+        try {
+            controlConnection.signal("NEWNYM");
+            return true;
+        } catch (IOException e) {
+            eventBroadcaster.broadcastDebug("error requesting newnym: "
+                    + e.getLocalizedMessage());
+            return false;
+        }
+    }
+
+    public boolean hasControlConnection() {
+        return controlConnection != null;
+    }
+
+    public int getTorPid() {
+        String pidS = getInfo("process/pid");
+        return (pidS == null || pidS.isEmpty()) ? -1 : Integer.valueOf(pidS);
+    }
+
+    public String getInfo(String info) {
+        if (!hasControlConnection()) {
+            return null;
+        }
+        try {
+            return controlConnection.getInfo(info);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    public boolean reloadTorConfig() {
+        if (!hasControlConnection()) {
+            return false;
+        }
+        try {
+            controlConnection.signal("HUP");
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        try {
+            restartTorProcess();
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public void restartTorProcess() throws Exception {
+        killTorProcess(-1);
+    }
+
+    public void killTorProcess() throws Exception {
+        killTorProcess(-9);
+    }
+
+    private void killTorProcess(int signal) throws Exception {
+        //Based on logic from Orbot project
+        String torFileName = config.getTorExecutableFile().getName();
+        int procId;
+        int killAttempts = 1;
+        while ((procId = getTorPid()) != -1) {
+            String pidString = String.valueOf(procId);
+            execIgnoreException(format("busybox killall %d %s", signal, torFileName));
+            execIgnoreException(format("toolbox kill %d %s", signal, pidString));
+            execIgnoreException(format("busybox kill %d %s", signal, pidString));
+            execIgnoreException(format("kill %d %s", signal, pidString));
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+            }
+            if (killAttempts++ > 4)
+                throw new Exception("Cannot kill: " + config.getTorExecutableFile()
+                        .getAbsolutePath());
+        }
+    }
+
+    private static void execIgnoreException(String command) {
+        try {
+            Runtime.getRuntime().exec(command);
+        } catch (IOException e) {
+        }
+    }
 }
