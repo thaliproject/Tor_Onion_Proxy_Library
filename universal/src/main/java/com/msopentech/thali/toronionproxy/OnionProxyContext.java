@@ -16,7 +16,9 @@ package com.msopentech.thali.toronionproxy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 
 
@@ -35,6 +37,8 @@ abstract public class OnionProxyContext {
     protected final TorConfig config;
 
     private final Object dataDirLock = new Object();
+
+    private final Object dnsLock = new Object();
 
     private final Object cookieLock = new Object();
 
@@ -151,6 +155,17 @@ abstract public class OnionProxyContext {
         }
     }
 
+    public final File createGoogleNameserverFile() throws IOException {
+        synchronized (dnsLock) {
+            File file = config.getResolveConf();
+            BufferedWriter writer = new BufferedWriter(new FileWriter(file));
+            writer.write("nameserver 8.8.8.8\n");
+            writer.write("nameserver 8.8.4.4\n");
+            writer.close();
+            return file;
+        }
+    }
+
     /**
      * Creates an observer for the configured cookie auth file
      *
@@ -177,7 +192,10 @@ abstract public class OnionProxyContext {
         return settings;
     }
 
-
+    public final TorConfigBuilder newConfigBuilder() {
+        return new TorConfigBuilder(this);
+    }
+    
     /**
      * Returns the system process id of the process running this onion proxy
      *
