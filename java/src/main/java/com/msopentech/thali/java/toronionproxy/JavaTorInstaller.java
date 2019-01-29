@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.concurrent.TimeoutException;
 
 import static com.msopentech.thali.toronionproxy.FileUtilities.cleanInstallOneFile;
 import static com.msopentech.thali.toronionproxy.FileUtilities.extractContentFromZip;
@@ -91,6 +92,11 @@ public final class JavaTorInstaller extends TorInstaller {
         }
         setPerms(config.getTorExecutableFile());
         return true;
+    }
+
+    @Override
+    public void updateTorConfigCustom(String content) throws IOException, TimeoutException {
+        //TODO: needs implementation
     }
 
 }

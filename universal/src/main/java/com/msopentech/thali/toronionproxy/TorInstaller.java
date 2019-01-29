@@ -14,6 +14,7 @@ package com.msopentech.thali.toronionproxy;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.TimeoutException;
 
 public abstract class TorInstaller {
 
@@ -23,6 +24,8 @@ public abstract class TorInstaller {
      * @return true if installation a success, otherwise false
      */
     public abstract boolean setup() throws IOException;
+
+    public abstract void updateTorConfigCustom(String content) throws IOException, TimeoutException;
 
     public final InputStream getAssetOrResourceByName(String fileName) {
         return getClass().getResourceAsStream("/" + fileName);
