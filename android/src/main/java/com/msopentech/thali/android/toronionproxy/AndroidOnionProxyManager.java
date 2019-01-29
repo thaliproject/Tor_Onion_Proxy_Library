@@ -29,8 +29,11 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.android.toronionproxy;
 
+import com.msopentech.thali.toronionproxy.EventBroadcaster;
 import com.msopentech.thali.toronionproxy.OnionProxyManager;
 import com.msopentech.thali.toronionproxy.TorSettings;
+
+import net.freehaven.tor.control.EventHandler;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,8 +59,10 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
 
     private final Context context;
 
-    public AndroidOnionProxyManager(Context context, String workingSubDirectoryName, TorSettings settings) {
-        super(new AndroidOnionProxyContext(context, workingSubDirectoryName, settings));
+    public AndroidOnionProxyManager(Context context, String workingSubDirectoryName, TorSettings settings,
+                                    EventBroadcaster eventBroadcaster, EventHandler eventHandler) {
+        super(new AndroidOnionProxyContext(context, workingSubDirectoryName, settings),
+                eventBroadcaster, eventHandler);
         this.context = context;
     }
 
