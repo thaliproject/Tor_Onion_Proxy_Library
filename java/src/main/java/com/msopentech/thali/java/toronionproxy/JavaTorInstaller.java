@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.concurrent.TimeoutException;
 
 import static com.msopentech.thali.toronionproxy.FileUtilities.cleanInstallOneFile;
 import static com.msopentech.thali.toronionproxy.FileUtilities.extractContentFromZip;
@@ -91,6 +92,18 @@ public final class JavaTorInstaller extends TorInstaller {
         }
         setPerms(config.getTorExecutableFile());
         return true;
+    }
+
+    /**
+     * Updates the content of torrc file, writing out the specified content. This is currently unsupported (see issue #69)
+     *
+     * @param content content of the custom torrc
+     * @throws IOException
+     * @throws TimeoutException
+     */
+    @Override
+    public void updateTorConfigCustom(String content) throws IOException, TimeoutException {
+        throw new UnsupportedOperationException();//TODO: implement
     }
 
 }
