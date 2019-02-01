@@ -98,27 +98,32 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
     private class NetworkStateReceiver extends BroadcastReceiver {
 
         @Override
-        public void onReceive(Context ctx, Intent i) {
-            if (!isRunning()) {
-                return;
-            }
+        public void onReceive(final Context ctx, final Intent i) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    if (!isRunning()) {
+                        return;
+                    }
 
-            boolean online = !i.getBooleanExtra(EXTRA_NO_CONNECTIVITY, false);
-            if (online) {
-                // Some devices fail to set EXTRA_NO_CONNECTIVITY, double check
-                Object o = ctx.getSystemService(CONNECTIVITY_SERVICE);
-                ConnectivityManager cm = (ConnectivityManager) o;
-                NetworkInfo net = cm.getActiveNetworkInfo();
-                if (net == null || !net.isConnected()) {
-                    online = false;
+                    boolean online = !i.getBooleanExtra(EXTRA_NO_CONNECTIVITY, false);
+                    if (online) {
+                        // Some devices fail to set EXTRA_NO_CONNECTIVITY, double check
+                        Object o = ctx.getSystemService(CONNECTIVITY_SERVICE);
+                        ConnectivityManager cm = (ConnectivityManager) o;
+                        NetworkInfo net = cm.getActiveNetworkInfo();
+                        if (net == null || !net.isConnected()) {
+                            online = false;
+                        }
+                    }
+                    LOG.info("Online: " + online);
+                    try {
+                        enableNetwork(online);
+                    } catch (IOException e) {
+                        LOG.warn(e.toString(), e);
+                    }
                 }
-            }
-            LOG.info("Online: " + online);
-            try {
-                enableNetwork(online);
-            } catch (IOException e) {
-                LOG.warn(e.toString(), e);
-            }
+            }).start();
         }
     }
 }
