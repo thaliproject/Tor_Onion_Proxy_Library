@@ -96,7 +96,7 @@ public class TorOnionProxySmokeTest  {
     private static final Logger LOG = LoggerFactory.getLogger(TorOnionProxySmokeTest.class);
 
     public OnionProxyManager getOnionProxyManager(String workingSubDirectoryName) {
-        return new AndroidOnionProxyManager(getContext(), workingSubDirectoryName);
+        return new AndroidOnionProxyManager(getContext(), workingSubDirectoryName, null, null, null);
     }
     /**
      * Start two TorOPs, one for a hidden service and one for a client. Have the hidden service op stop and start
