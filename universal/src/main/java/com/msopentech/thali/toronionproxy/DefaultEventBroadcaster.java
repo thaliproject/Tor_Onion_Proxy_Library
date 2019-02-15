@@ -12,22 +12,33 @@ See the Apache 2 License for the specific language governing permissions and lim
 */
 package com.msopentech.thali.toronionproxy;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.concurrent.TimeoutException;
+/**
+ * Default EventBroadcaster. broadcastBandwidth, broadcastLogMessage, broadcastStatus are all
+ * no operations. If you need to implement these broadcast methods, then create a new class
+ * that extends BaseEventBroadcaster.
+ */
+public final class DefaultEventBroadcaster extends BaseEventBroadcaster {
 
-public abstract class TorInstaller {
+    public DefaultEventBroadcaster() {
+        super(null);
+    }
 
-    /**
-     * Sets up and installs the tor environment. If the tor environment is already setup, this does not need to be invoked.
-     *
-     * @return true if installation a success, otherwise false
-     */
-    public abstract boolean setup() throws IOException;
+    public DefaultEventBroadcaster(TorSettings settings) {
+        super(settings);
+    }
 
-    public abstract void updateTorConfigCustom(String content) throws IOException, TimeoutException;
+    @Override
+    public void broadcastBandwidth(long upload, long download, long written, long read) {
 
-    public final InputStream getAssetOrResourceByName(String fileName) {
-        return getClass().getResourceAsStream("/" + fileName);
+    }
+
+    @Override
+    public void broadcastLogMessage(String logMessage) {
+
+    }
+
+    @Override
+    public void broadcastStatus() {
+
     }
 }

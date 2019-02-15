@@ -17,7 +17,7 @@ import java.io.IOException;
 
 /**
  * Holds Tor configuration information.
-*/
+ */
 public final class TorConfig {
 
     public final static String GEO_IP_NAME = "geoip";
@@ -36,6 +36,8 @@ public final class TorConfig {
     private File hostnameFile;
     private File cookieAuthFile;
     private File libraryPath;
+    private File resolveConf;
+    private File controlPortFile;
 
     /**
      * Creates simplest default config. All tor files will be relative to the configDir root.
@@ -44,7 +46,7 @@ public final class TorConfig {
      * @return
      */
     public static TorConfig createDefault(File configDir) {
-        return new TorConfig.Builder(configDir).build();
+        return new Builder(configDir).build();
     }
 
     /**
@@ -54,13 +56,13 @@ public final class TorConfig {
      * @return
      */
     public static TorConfig createFlatConfig(File configDir) {
-        TorConfig.Builder builder = new TorConfig.Builder(configDir);
+        Builder builder = new Builder(configDir);
         builder.dataDir(configDir);
         return builder.build();
     }
 
     public static TorConfig createConfig(File configDir, File dataDir) {
-        TorConfig.Builder builder = new TorConfig.Builder(configDir);
+        Builder builder = new Builder(configDir);
         builder.dataDir(dataDir);
         return builder.build();
     }
@@ -105,6 +107,14 @@ public final class TorConfig {
 
     public File getTorrcFile() throws IOException {
         return torrcFile;
+    }
+
+    public File getResolveConf() {
+        return resolveConf;
+    }
+
+    public File getControlPortFile() {
+        return controlPortFile;
     }
 
     /**
@@ -183,6 +193,8 @@ public final class TorConfig {
         private File libraryPath;
         private File cookieAuthFile;
         private File hostnameFile;
+        private File resolveConf;
+        private File controlPortFile;
 
         /**
          * Constructs a builder with the specified configDir.
@@ -305,6 +317,11 @@ public final class TorConfig {
             return this;
         }
 
+        public Builder resolveConf(File resolveConf) {
+            this.resolveConf = resolveConf;
+            return this;
+        }
+
         /**
          * Builds torConfig and sets default values if not explicitly configured through builder.
          *
@@ -350,6 +367,14 @@ public final class TorConfig {
                 cookieAuthFile = new File(dataDir, "control_auth_cookie");
             }
 
+            if(resolveConf == null) {
+                resolveConf = new File(configDir, "resolv.conf");
+            }
+
+            if(controlPortFile == null) {
+                controlPortFile = new File(dataDir, "control.txt");
+            }
+
             TorConfig config = new TorConfig();
             config.hiddenServiceDir = hiddenServiceDir;
             config.torExecutableFile = torExecutableFile;
@@ -362,6 +387,8 @@ public final class TorConfig {
             config.hostnameFile = hostnameFile;
             config.cookieAuthFile = cookieAuthFile;
             config.libraryPath = libraryPath;
+            config.resolveConf = resolveConf;
+            config.controlPortFile = controlPortFile;
             return config;
         }
 

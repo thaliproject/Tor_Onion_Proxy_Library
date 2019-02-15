@@ -16,7 +16,9 @@ package com.msopentech.thali.toronionproxy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 
 
@@ -36,9 +38,13 @@ abstract public class OnionProxyContext {
 
     private final Object dataDirLock = new Object();
 
+    private final Object dnsLock = new Object();
+
     private final Object cookieLock = new Object();
 
     private final Object hostnameLock = new Object();
+
+    private final TorSettings settings;
 
     /**
      * Constructs instance of <code>OnionProxyContext</code> with specified configDir. Use this constructor when
@@ -49,7 +55,7 @@ abstract public class OnionProxyContext {
      * @throws IllegalArgumentException if specified config in null
      */
     public OnionProxyContext(File configDir) {
-        this(new TorConfig.Builder(configDir).build());
+        this(new TorConfig.Builder(configDir).build(), null);
     }
 
     /**
@@ -60,11 +66,12 @@ abstract public class OnionProxyContext {
      * @param torConfig tor configuration info used for running and installing tor
      * @throws IllegalArgumentException if specified config in null
      */
-    public OnionProxyContext(TorConfig torConfig) {
+    public OnionProxyContext(TorConfig torConfig, TorSettings settings) {
         if (torConfig == null) {
             throw new IllegalArgumentException("torConfig is null");
         }
         this.config = torConfig;
+        this.settings = settings == null ? new DefaultSettings() : settings;
     }
 
 
@@ -149,6 +156,20 @@ abstract public class OnionProxyContext {
     }
 
     /**
+     * Creates a default resolve.conf file using the Google nameserver. This is a convenience method.
+     */
+    public final File createGoogleNameserverFile() throws IOException {
+        synchronized (dnsLock) {
+            File file = config.getResolveConf();
+            BufferedWriter writer = new BufferedWriter(new FileWriter(file));
+            writer.write("nameserver 8.8.8.8\n");
+            writer.write("nameserver 8.8.4.4\n");
+            writer.close();
+            return file;
+        }
+    }
+
+    /**
      * Creates an observer for the configured cookie auth file
      *
      * @return write observer for cookie auth file
@@ -170,6 +191,14 @@ abstract public class OnionProxyContext {
         }
     }
 
+    public final TorSettings getSettings() {
+        return settings;
+    }
+
+    public final TorConfigBuilder newConfigBuilder() {
+        return new TorConfigBuilder(this);
+    }
+    
     /**
      * Returns the system process id of the process running this onion proxy
      *

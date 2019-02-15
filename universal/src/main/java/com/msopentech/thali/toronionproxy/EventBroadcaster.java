@@ -12,22 +12,22 @@ See the Apache 2 License for the specific language governing permissions and lim
 */
 package com.msopentech.thali.toronionproxy;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.concurrent.TimeoutException;
+/**
+ * Service for sending event logs to the system
+ */
+public interface EventBroadcaster {
+    void broadcastBandwidth(long upload, long download, long written, long read);
 
-public abstract class TorInstaller {
+    void broadcastDebug(String msg);
 
-    /**
-     * Sets up and installs the tor environment. If the tor environment is already setup, this does not need to be invoked.
-     *
-     * @return true if installation a success, otherwise false
-     */
-    public abstract boolean setup() throws IOException;
+    void broadcastException(String msg, Exception e);
 
-    public abstract void updateTorConfigCustom(String content) throws IOException, TimeoutException;
+    void broadcastLogMessage(String logMessage);
 
-    public final InputStream getAssetOrResourceByName(String fileName) {
-        return getClass().getResourceAsStream("/" + fileName);
-    }
+    void broadcastNotice(String msg);
+
+    void broadcastStatus();
+
+    Status getStatus();
+
 }

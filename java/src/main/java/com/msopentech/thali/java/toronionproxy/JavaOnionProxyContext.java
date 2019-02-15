@@ -23,8 +23,8 @@ public final class JavaOnionProxyContext extends OnionProxyContext {
      * Constructs a Java specific <code>OnionProxyContext</code>
      * @param config
      */
-    public JavaOnionProxyContext(TorConfig config) {
-        super(config);
+    public JavaOnionProxyContext(TorConfig config, TorSettings settings) {
+        super(config, settings);
     }
 
     public JavaOnionProxyContext(File configDir) {

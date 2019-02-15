@@ -30,6 +30,7 @@ See the Apache 2 License for the specific language governing permissions and lim
 package com.msopentech.thali.toronionproxy;
 
 import net.freehaven.tor.control.ConfigEntry;
+import net.freehaven.tor.control.EventHandler;
 import net.freehaven.tor.control.TorControlConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +43,7 @@ import java.util.*;
 import java.util.concurrent.CountDownLatch;
 
 import static com.msopentech.thali.toronionproxy.FileUtilities.setToReadOnlyPermissions;
+import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
@@ -56,7 +58,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  */
 public class OnionProxyManager {
     private static final String[] EVENTS = {
-            "CIRC", "ORCONN", "NOTICE", "WARN", "ERR"
+            "CIRC", "ORCONN", "NOTICE", "WARN", "ERR", "BW", "STATUS_CLIENT"
     };
 
     private static final String OWNER = "__OwningControllerProcess";
@@ -65,7 +67,8 @@ public class OnionProxyManager {
     private static final Logger LOG = LoggerFactory.getLogger(OnionProxyManager.class);
 
     private final OnionProxyContext onionProxyContext;
-
+    private final EventBroadcaster eventBroadcaster;
+    private final EventHandler eventHandler;
     private final TorConfig config;
     private final TorInstaller torInstaller;
 
@@ -76,18 +79,27 @@ public class OnionProxyManager {
     private volatile TorControlConnection controlConnection = null;
     private volatile int control_port;
 
+    public OnionProxyManager(OnionProxyContext onionProxyContext) {
+        this(onionProxyContext, null, null);
+    }
+
     /**
      * Constructs an <code>OnionProxyManager</code> with the specified context
      *
      * @param onionProxyContext
      */
-    public OnionProxyManager(OnionProxyContext onionProxyContext) {
+    public OnionProxyManager(OnionProxyContext onionProxyContext, EventBroadcaster eventBroadcaster,
+                             EventHandler eventHandler) {
         if(onionProxyContext == null) {
             throw new IllegalArgumentException("onionProxyContext is null");
         }
         this.torInstaller = onionProxyContext.getInstaller();
         this.onionProxyContext = onionProxyContext;
         this.config = onionProxyContext.getConfig();
+        this.eventBroadcaster = (eventBroadcaster == null) ? new DefaultEventBroadcaster() :
+                eventBroadcaster;
+        this.eventHandler = (eventHandler == null) ? new OnionProxyManagerEventHandler() :
+                eventHandler;
     }
 
     public final OnionProxyContext getContext() {
@@ -116,13 +128,13 @@ public class OnionProxyManager {
         try {
             for (int retryCount = 0; retryCount < numberOfRetries; ++retryCount) {
                 start(enableLogging);
-                enableNetwork(true);
 
                 // We will check every second to see if boot strapping has finally finished
                 for (int secondsWaited = 0; secondsWaited < secondsBeforeTimeOut; ++secondsWaited) {
                     if (!isBootstrapped()) {
                         Thread.sleep(1000, 0);
                     } else {
+                        eventBroadcaster.broadcastNotice("Tor started; process id = " + getTorPid());
                         return true;
                     }
                 }
@@ -232,14 +244,19 @@ public class OnionProxyManager {
                 return;
             }
             LOG.info("Stopping Tor");
+            eventBroadcaster.broadcastNotice("Using control port to shutdown Tor");
             controlConnection.setConf("DisableNetwork", "1");
-            controlConnection.shutdownTor("TERM");
+            controlConnection.shutdownTor("HALT");
+            eventBroadcaster.broadcastNotice("sending HALT signal to Tor process");
         } finally {
-            if (controlSocket != null) {
-                controlSocket.close();
-            }
             controlConnection = null;
-            controlSocket = null;
+            if (controlSocket != null) {
+                try {
+                    controlSocket.close();
+                } finally {
+                    controlSocket = null;
+                }
+            }
         }
     }
 
@@ -249,8 +266,12 @@ public class OnionProxyManager {
      * @return True if running
      * @throws java.io.IOException - IO exceptions
      */
-    public synchronized boolean isRunning() throws IOException {
-        return isBootstrapped() && isNetworkEnabled();
+    public synchronized boolean isRunning() {
+        try {
+            return isBootstrapped() && isNetworkEnabled();
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     /**
@@ -261,7 +282,7 @@ public class OnionProxyManager {
      */
     public synchronized void enableNetwork(boolean enable) throws IOException {
         if (controlConnection == null) {
-            throw new IllegalStateException("Tor is not running!");
+            return;
         }
         LOG.info("Enabling network: " + enable);
         controlConnection.setConf("DisableNetwork", enable ? "0" : "1");
@@ -276,7 +297,7 @@ public class OnionProxyManager {
      */
     private synchronized boolean isNetworkEnabled() throws IOException {
         if (controlConnection == null) {
-            throw new IllegalStateException("Tor is not running!");
+            return false;
         }
 
         List<ConfigEntry> disableNetworkSettingValues = controlConnection.getConf("DisableNetwork");
@@ -330,6 +351,7 @@ public class OnionProxyManager {
 
         LOG.info("Starting Tor");
         if(!onionProxyContext.createCookieAuthFile()) {
+            eventBroadcaster.broadcastNotice("Tor authentication cookie does not exist yet");
             throw new IOException("Failed to create cookie auth file: "
                     + onionProxyContext.getConfig().getCookieAuthFile().getAbsolutePath());
         }
@@ -363,8 +385,10 @@ public class OnionProxyManager {
                 int exit = torProcess.waitFor();
                 torProcess = null;
                 if (exit != 0) {
+                    eventBroadcaster.broadcastNotice("Tor exited with value" + exit);
+                    eventBroadcaster.getStatus().stopping();
                     LOG.warn("Tor exited with value " + exit);
-                    throw new IOException("Tori exited with value: " + exit);
+                    throw new IOException("Tor exited with value: " + exit);
                 }
             }
 
@@ -372,30 +396,41 @@ public class OnionProxyManager {
             if (cookieFile.length() == 0 && !cookieObserver.poll(COOKIE_TIMEOUT, MILLISECONDS)) {
                 LOG.warn("Auth cookie not created");
                 FileUtilities.listFilesToLog(config.getDataDir());
+                eventBroadcaster.broadcastNotice("Tor authentication cookie file not created");
+                eventBroadcaster.getStatus().stopping();
                 throw new IOException("Auth cookie file not created: " + cookieFile.getAbsolutePath()
                         + ", len = " + cookieFile.length());
             }
 
+            eventBroadcaster.broadcastNotice( "Waiting for control port...");
             // Now we should be able to connect to the new process
             controlPortCountDownLatch.await();
+
+            eventBroadcaster.broadcastNotice( "Connecting to control port: " + control_port);
             controlSocket = new Socket("127.0.0.1", control_port);
 
             // Open a control connection and authenticate using the cookie file
             TorControlConnection controlConnection = new TorControlConnection(controlSocket);
+            eventBroadcaster.broadcastNotice( "SUCCESS connected to Tor control port.");
+
             if (enableLogs) {
                 controlConnection.setDebugging(System.out);
             }
 
             controlConnection.authenticate(FileUtilities.read(cookieFile));
-            // Tell Tor to exit when the control connection is closed
-            controlConnection.takeOwnership();
+            eventBroadcaster.broadcastNotice("SUCCESS - authenticated to control port.");
+
             controlConnection.resetConf(Collections.singletonList(OWNER));
-            // Register to receive events from the Tor process
-            controlConnection.setEventHandler(new OnionProxyManagerEventHandler());
+
+            eventBroadcaster.broadcastNotice("adding control port event handler");
+            controlConnection.setEventHandler(eventHandler);
             controlConnection.setEvents(Arrays.asList(EVENTS));
+            eventBroadcaster.broadcastNotice("SUCCESS added control port event handler");
 
             // We only set the class property once the connection is in a known good state
             this.controlConnection = controlConnection;
+            enableNetwork(true);
+
             LOG.info("Completed starting of tor");
         } catch (SecurityException e) {
             LOG.warn(e.toString(), e);
@@ -501,4 +536,156 @@ public class OnionProxyManager {
         return torInstaller != null && torInstaller.setup();
     }
 
+    public boolean isIPv4LocalHostSocksPortOpen() {
+        try {
+            getIPv4LocalHostSocksPort();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Sets the exit nodes through the tor control connection
+     *
+     * @param exitNodes
+     * @return true if successfully set, otherwise false
+     */
+    public boolean setExitNode(String exitNodes) {
+        //Based on config params from Orbot project
+        if (!hasControlConnection()) {
+            return false;
+        }
+        if (exitNodes == null || exitNodes.isEmpty()) {
+            try {
+                ArrayList<String> resetBuffer = new ArrayList<>();
+                resetBuffer.add("ExitNodes");
+                resetBuffer.add("StrictNodes");
+                controlConnection.resetConf(resetBuffer);
+                controlConnection.setConf("DisableNetwork", "1");
+                controlConnection.setConf("DisableNetwork", "0");
+            } catch (Exception ioe) {
+                LOG.error("Connection exception occurred resetting exits", ioe);
+                return false;
+            }
+        } else {
+            try {
+                controlConnection.setConf("GeoIPFile", config.getGeoIpFile().getCanonicalPath());
+                controlConnection.setConf("GeoIPv6File", config.getGeoIpv6File().getCanonicalPath
+                        ());
+                controlConnection.setConf("ExitNodes", exitNodes);
+                controlConnection.setConf("StrictNodes", "1");
+                controlConnection.setConf("DisableNetwork", "1");
+                controlConnection.setConf("DisableNetwork", "0");
+            } catch (Exception ioe) {
+                LOG.error("Connection exception occurred resetting exits", ioe);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean disableNetwork(boolean isEnabled) {
+        if (!hasControlConnection()) {
+            return false;
+        }
+        try {
+            controlConnection.setConf("DisableNetwork", isEnabled ? "0" : "1");
+            return true;
+        } catch (Exception e) {
+            eventBroadcaster.broadcastDebug("error disabling network "
+                    + e.getLocalizedMessage());
+            return false;
+        }
+    }
+
+    public boolean setNewIdentity() {
+        if (!hasControlConnection()) {
+            return false;
+        }
+        try {
+            controlConnection.signal("NEWNYM");
+            return true;
+        } catch (IOException e) {
+            eventBroadcaster.broadcastDebug("error requesting newnym: "
+                    + e.getLocalizedMessage());
+            return false;
+        }
+    }
+
+    public boolean hasControlConnection() {
+        return controlConnection != null;
+    }
+
+    public int getTorPid() {
+        String pidS = getInfo("process/pid");
+        return (pidS == null || pidS.isEmpty()) ? -1 : Integer.valueOf(pidS);
+    }
+
+    public String getInfo(String info) {
+        if (!hasControlConnection()) {
+            return null;
+        }
+        try {
+            return controlConnection.getInfo(info);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    public boolean reloadTorConfig() {
+        if (!hasControlConnection()) {
+            return false;
+        }
+        try {
+            controlConnection.signal("HUP");
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        try {
+            restartTorProcess();
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public void restartTorProcess() throws Exception {
+        killTorProcess(-1);
+    }
+
+    public void killTorProcess() throws Exception {
+        killTorProcess(-9);
+    }
+
+    private void killTorProcess(int signal) throws Exception {
+        //Based on logic from Orbot project
+        String torFileName = config.getTorExecutableFile().getName();
+        int procId;
+        int killAttempts = 0;
+        while ((procId = getTorPid()) != -1) {
+            String pidString = String.valueOf(procId);
+            execIgnoreException(format("busybox killall %d %s", signal, torFileName));
+            execIgnoreException(format("toolbox kill %d %s", signal, pidString));
+            execIgnoreException(format("busybox kill %d %s", signal, pidString));
+            execIgnoreException(format("kill %d %s", signal, pidString));
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+            }
+            killAttempts++;
+            if (killAttempts > 4)
+                throw new Exception("Cannot kill: " + config.getTorExecutableFile()
+                        .getAbsolutePath());
+        }
+    }
+
+    private static void execIgnoreException(String command) {
+        try {
+            Runtime.getRuntime().exec(command);
+        } catch (IOException e) {
+        }
+    }
 }
