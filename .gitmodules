@@ -1,0 +1,3 @@
+[submodule "external/pluto"]
+	path = external/pluto
+	url = https://github.com/guardianproject/pluto.git
