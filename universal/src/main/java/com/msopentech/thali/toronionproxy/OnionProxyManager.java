@@ -361,9 +361,9 @@ public class OnionProxyManager {
 
         // Start a new Tor process
         String torPath = config.getTorExecutableFile().getAbsolutePath();
-        String configPath = config.getTorrcFile().getAbsolutePath();
+        String torrcFile = config.getTorrcFile().getAbsolutePath();
         String pid = onionProxyContext.getProcessId();
-        String[] cmd = {torPath, "-f", configPath, OWNER, pid};
+        String[] cmd = {torPath, "-f", torrcFile, OWNER, pid};
         String[] env = getEnvironmentArgsForExec();
         ProcessBuilder processBuilder = new ProcessBuilder(cmd);
         setEnvironmentArgsAndWorkingDirectoryForStart(processBuilder);
@@ -532,8 +532,15 @@ public class OnionProxyManager {
      * @return true if tor installation is successful, otherwise false
      * @throws IOException
      */
-    public boolean setup() throws IOException {
-        return torInstaller != null && torInstaller.setup();
+    public void setup() throws IOException {
+        if(torInstaller == null) {
+            throw new IOException("No TorInstaller found");
+        }
+        torInstaller.setup();
+    }
+
+    public TorInstaller getTorInstaller() {
+        return torInstaller;
     }
 
     public boolean isIPv4LocalHostSocksPortOpen() {

@@ -55,7 +55,7 @@ abstract public class OnionProxyContext {
      * @throws IllegalArgumentException if specified config in null
      */
     public OnionProxyContext(File configDir) {
-        this(new TorConfig.Builder(configDir).build(), null);
+        this(TorConfig.createDefault(configDir), null);
     }
 
     /**
