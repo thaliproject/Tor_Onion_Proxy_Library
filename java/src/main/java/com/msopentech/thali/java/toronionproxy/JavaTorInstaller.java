@@ -23,6 +23,19 @@ import static com.msopentech.thali.toronionproxy.FileUtilities.cleanInstallOneFi
 import static com.msopentech.thali.toronionproxy.FileUtilities.extractContentFromZip;
 import static com.msopentech.thali.toronionproxy.FileUtilities.setPerms;
 
+/**
+ * See below for an example of setting up and using the JavaTorInstaller
+ *
+ <pre>
+ String fileStorageLocation = "torfiles";
+ OnionProxyManager onionProxyManager = new OnionProxyManager(new JavaOnionProxyContext(Files.createTempDirectory(fileStorageLocation).toFile()));
+
+ TorConfigBuilder builder = onionProxyManager.getContext().newConfigBuilder().updateTorConfig();
+ onionProxyManager.getContext().getInstaller().updateTorConfigCustom(builder.asString());
+ onionProxyManager.setup();
+
+ </pre>
+ */
 public final class JavaTorInstaller extends TorInstaller {
 
     private static final Logger LOG = LoggerFactory.getLogger(JavaTorInstaller.class);
@@ -64,32 +77,15 @@ public final class JavaTorInstaller extends TorInstaller {
             throw new IOException("Could not create data directory!");
         }
 
-        LOG.info("Installing resources: geoip=" + config.getGeoIpFile().getAbsolutePath()
-                + ", torrc =" + config.getTorrcFile().getAbsolutePath());
+        LOG.info("Installing resources: geoip=" + config.getGeoIpFile().getAbsolutePath());
         cleanInstallOneFile(getAssetOrResourceByName(TorConfig.GEO_IP_NAME), config.getGeoIpFile());
         cleanInstallOneFile(getAssetOrResourceByName(TorConfig.GEO_IPV_6_NAME), config.getGeoIpv6File());
-        cleanInstallOneFile(getAssetOrResourceByName(TorConfig.TORRC_NAME), config.getTorrcFile());
-
 
         LOG.info("Installing tor executable: " + config.getTorExecutableFile().getAbsolutePath());
         File torParent = config.getTorExecutableFile().getParentFile();
         extractContentFromZip(torParent.exists() ? torParent : config.getTorExecutableFile(),
                 getAssetOrResourceByName(getPathToTorExecutable() + "tor.zip"));
 
-        PrintWriter printWriter = null;
-        try {
-            LOG.info("Updating torrc file");
-            printWriter = new PrintWriter(new BufferedWriter(new FileWriter(config.getTorrcFile(), true)));
-            printWriter.println("CookieAuthFile " + config.getCookieAuthFile().getAbsolutePath());
-            printWriter.println("PidFile "
-                    + new File(config.getDataDir(), "pid").getAbsolutePath());
-            printWriter.println("GeoIPFile " + config.getGeoIpFile().getAbsolutePath());
-            printWriter.println("GeoIPv6File " + config.getGeoIpv6File().getAbsolutePath());
-        } finally {
-            if (printWriter != null) {
-                printWriter.close();
-            }
-        }
         setPerms(config.getTorExecutableFile());
         return true;
     }
@@ -103,7 +99,17 @@ public final class JavaTorInstaller extends TorInstaller {
      */
     @Override
     public void updateTorConfigCustom(String content) throws IOException, TimeoutException {
-        throw new UnsupportedOperationException();//TODO: implement
+        PrintWriter printWriter = null;
+        try {
+            LOG.info("Updating torrc file; torrc =" + config.getTorrcFile().getAbsolutePath());
+            printWriter = new PrintWriter(new BufferedWriter(new FileWriter(config.getTorrcFile(), true)));
+            printWriter.println("CookieAuthFile " + config.getCookieAuthFile().getAbsolutePath());
+            printWriter.println("PidFile " + new File(config.getDataDir(), "pid").getAbsolutePath());
+            printWriter.print(content);
+        } finally {
+            if (printWriter != null) {
+                printWriter.close();
+            }
+        }
     }
-
 }
