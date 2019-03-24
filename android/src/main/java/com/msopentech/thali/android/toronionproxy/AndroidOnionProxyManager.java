@@ -59,9 +59,9 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
 
     private final Context context;
 
-    public AndroidOnionProxyManager(Context context, String workingSubDirectoryName, TorSettings settings,
+    public AndroidOnionProxyManager(Context context, String alternativeInstallDir, String configDirName, TorSettings settings,
                                     EventBroadcaster eventBroadcaster, EventHandler eventHandler) {
-        super(new AndroidOnionProxyContext(context, workingSubDirectoryName, settings),
+        super(new AndroidOnionProxyContext(context, alternativeInstallDir, configDirName, settings),
                 eventBroadcaster, eventHandler);
         this.context = context;
     }

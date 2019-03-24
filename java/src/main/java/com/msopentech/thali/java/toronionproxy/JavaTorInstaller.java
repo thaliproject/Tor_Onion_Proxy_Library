@@ -71,7 +71,7 @@ public final class JavaTorInstaller extends TorInstaller {
     }
 
     @Override
-    public boolean setup() throws IOException {
+    public void setup() throws IOException {
         LOG.info("Setting up tor");
         if (!context.createDataDir()) {
             throw new IOException("Could not create data directory!");
@@ -87,7 +87,6 @@ public final class JavaTorInstaller extends TorInstaller {
                 getAssetOrResourceByName(getPathToTorExecutable() + "tor.zip"));
 
         setPerms(config.getTorExecutableFile());
-        return true;
     }
 
     /**

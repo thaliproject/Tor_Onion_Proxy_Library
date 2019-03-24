@@ -22,14 +22,20 @@ import android.content.Context;
 
 import java.io.File;
 
-import static android.content.Context.MODE_PRIVATE;
-
 public class AndroidOnionProxyContext extends OnionProxyContext {
 
     private final Context context;
 
-    public AndroidOnionProxyContext(Context context, String installDir, TorSettings settings) {
-        super(AndroidTorConfig.createConfig(context.getDir(installDir, MODE_PRIVATE)), settings);
+    /**
+     * Constructs instance of AndroidOnionProxyContext. We provide an alternativeInstallDir here. If the Android
+     * installer successfully extracts the native libraries into a non-writable space, the alternativeInstallDir
+     * will be ignored. It is only used if the extraction is unsuccessful.
+     *
+     * configDir is a writable directory for tor config and data information.
+     *
+     */
+    public AndroidOnionProxyContext(Context context, String alternativeInstallDir, String configDirName, TorSettings settings) {
+        super(AndroidTorConfig.createConfig(alternativeInstallDir, configDirName, context), settings);
         this.context = context;
     }
 

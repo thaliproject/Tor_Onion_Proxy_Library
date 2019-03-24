@@ -20,10 +20,8 @@ public abstract class TorInstaller {
 
     /**
      * Sets up and installs the tor environment. If the tor environment is already setup, this does not need to be invoked.
-     *
-     * @return true if installation a success, otherwise false
      */
-    public abstract boolean setup() throws IOException;
+    public abstract void setup() throws IOException;
 
     public abstract void updateTorConfigCustom(String content) throws IOException, TimeoutException;
 

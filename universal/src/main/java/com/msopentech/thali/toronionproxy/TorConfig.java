@@ -38,6 +38,7 @@ public final class TorConfig {
     private File libraryPath;
     private File resolveConf;
     private File controlPortFile;
+    private File installDir;
 
     /**
      * Creates simplest default config. All tor files will be relative to the configDir root.
@@ -46,7 +47,7 @@ public final class TorConfig {
      * @return
      */
     public static TorConfig createDefault(File configDir) {
-        return new Builder(configDir).build();
+        return new Builder(configDir, configDir).build();
     }
 
     /**
@@ -56,15 +57,17 @@ public final class TorConfig {
      * @return
      */
     public static TorConfig createFlatConfig(File configDir) {
-        Builder builder = new Builder(configDir);
-        builder.dataDir(configDir);
+        return createConfig(configDir, configDir, configDir);
+    }
+
+    public static TorConfig createConfig(File installDir, File configDir, File dataDir) {
+        Builder builder = new Builder(installDir, configDir);
+        builder.dataDir(dataDir);
         return builder.build();
     }
 
-    public static TorConfig createConfig(File configDir, File dataDir) {
-        Builder builder = new Builder(configDir);
-        builder.dataDir(dataDir);
-        return builder.build();
+    public File getInstallDir() {
+        return installDir;
     }
 
     public File getHiddenServiceDir() {
@@ -170,6 +173,7 @@ public final class TorConfig {
                 ", hiddenServiceDir=" + hiddenServiceDir +
                 ", dataDir=" + dataDir +
                 ", configDir=" + configDir +
+                ", installDir=" + installDir +
                 ", homeDir=" + homeDir +
                 ", hostnameFile=" + hostnameFile +
                 ", cookieAuthFile=" + cookieAuthFile +
@@ -195,11 +199,13 @@ public final class TorConfig {
         private File hostnameFile;
         private File resolveConf;
         private File controlPortFile;
+        private File installDir;
 
         /**
-         * Constructs a builder with the specified configDir.
+         * Constructs a builder with the specified configDir and installDir. The install directory contains executable
+         * and libraries, while the configDir is for writeable files.
          * <p>
-         * For Linux, the LD_LIBRARY_PATH will be set to the home directory, Any libraries must be in the configDir.
+         * For Linux, the LD_LIBRARY_PATH will be set to the home directory, Any libraries must be in the installDir.
          * <p>
          * For all platforms the configDir will be the default parent location of all files unless they are explicitly set
          * to a different location in this builder.
@@ -207,11 +213,15 @@ public final class TorConfig {
          * @param configDir
          * @throws IllegalArgumentException if configDir is null
          */
-        public Builder(File configDir) {
+        public Builder(File installDir, File configDir) {
+            if (installDir == null) {
+                throw new IllegalArgumentException("installDir is null");
+            }
             if (configDir == null) {
                 throw new IllegalArgumentException("configDir is null");
             }
             this.configDir = configDir;
+            this.installDir = installDir;
         }
 
         /**
@@ -302,6 +312,11 @@ public final class TorConfig {
             return this;
         }
 
+        public Builder installDir(File file) {
+            this.installDir = file;
+            return this;
+        }
+
         public Builder libraryPath(File directory) {
             this.libraryPath = directory;
             return this;
@@ -332,7 +347,7 @@ public final class TorConfig {
             homeDir = (userHome != null && !"".equals(userHome)) ? new File(userHome) : configDir;
 
             if (torExecutableFile == null) {
-                torExecutableFile = new File(configDir, getTorExecutableFileName());
+                torExecutableFile = new File(installDir, getTorExecutableFileName());
             }
 
             if (geoIpFile == null) {
@@ -389,12 +404,14 @@ public final class TorConfig {
             config.libraryPath = libraryPath;
             config.resolveConf = resolveConf;
             config.controlPortFile = controlPortFile;
+            config.installDir = installDir;
             return config;
         }
 
         private static String getTorExecutableFileName() {
             switch (OsData.getOsType()) {
                 case ANDROID:
+                    return "tor.so";
                 case LINUX_32:
                 case LINUX_64:
                 case MAC:
