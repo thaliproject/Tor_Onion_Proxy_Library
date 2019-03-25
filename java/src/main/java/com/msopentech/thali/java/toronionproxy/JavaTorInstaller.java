@@ -111,4 +111,13 @@ public final class JavaTorInstaller extends TorInstaller {
             }
         }
     }
+
+    /**
+     * Opening the bridges stream is not currently supported for the Java library. Make sure that your
+     * TorSettings.hasBridges is flagged to false to avoid this method being called.
+     */
+    @Override
+    public InputStream openBridgesStream() throws IOException {
+        throw new UnsupportedOperationException();
+    }
 }

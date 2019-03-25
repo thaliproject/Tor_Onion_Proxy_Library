@@ -28,4 +28,6 @@ public abstract class TorInstaller {
     public final InputStream getAssetOrResourceByName(String fileName) {
         return getClass().getResourceAsStream("/" + fileName);
     }
+
+    public abstract InputStream openBridgesStream() throws IOException;
 }

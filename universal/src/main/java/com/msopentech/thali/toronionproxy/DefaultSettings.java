@@ -1,6 +1,7 @@
 package com.msopentech.thali.toronionproxy;
 
-import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Provides some reasonable default settings. Override this class or create a new implementation to
@@ -15,11 +16,6 @@ public class DefaultSettings implements TorSettings {
     @Override
     public String dnsPort() {
         return "5400";
-    }
-
-    @Override
-    public InputStream getBridges() {
-        return null;
     }
 
     @Override
@@ -48,8 +44,8 @@ public class DefaultSettings implements TorSettings {
     }
 
     @Override
-    public String getListOfSupportedBridges() {
-        return null;
+    public List<String> getListOfSupportedBridges() {
+        return new ArrayList<>();
     }
 
     @Override
