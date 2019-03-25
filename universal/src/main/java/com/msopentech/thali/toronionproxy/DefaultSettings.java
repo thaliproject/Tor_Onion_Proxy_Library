@@ -10,7 +10,7 @@ import java.util.List;
 public class DefaultSettings implements TorSettings {
     @Override
     public boolean disableNetwork() {
-        return false;
+        return true;
     }
 
     @Override
