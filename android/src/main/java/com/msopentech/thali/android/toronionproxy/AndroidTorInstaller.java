@@ -12,14 +12,17 @@ See the Apache 2 License for the specific language governing permissions and lim
 */
 package com.msopentech.thali.android.toronionproxy;
 
+
 import android.content.Context;
 import android.util.Log;
 import com.msopentech.thali.toronionproxy.TorInstaller;
+import com.msopentech.thali.toronionproxy.android.R;
 import org.torproject.android.binary.TorResourceInstaller;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -35,7 +38,7 @@ public class AndroidTorInstaller extends TorInstaller {
 
     private File torrcFile;
 
-    /**
+   /**
      * The configDir will be the location of tor configuration files. It contains the files, geoip, geoip6,
      * bridges.txt and the default torrc file.
      *
@@ -77,5 +80,10 @@ public class AndroidTorInstaller extends TorInstaller {
             Log.w(TAG, "Failed to setup tor: " + e.getMessage());
             throw new IOException(e);
         }
+    }
+
+    @Override
+    public InputStream openBridgesStream() throws IOException {
+        return context.getResources().openRawResource(R.raw.bridges);
     }
 }

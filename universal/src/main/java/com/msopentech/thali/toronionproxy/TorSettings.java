@@ -1,13 +1,11 @@
 package com.msopentech.thali.toronionproxy;
 
-import java.io.InputStream;
+import java.util.List;
 
 public interface TorSettings {
     boolean disableNetwork();
 
     String dnsPort();
-
-    InputStream getBridges();
 
     String getCustomTorrc();
 
@@ -19,7 +17,10 @@ public interface TorSettings {
 
     int getHttpTunnelPort();
 
-    String getListOfSupportedBridges();
+    /**
+     * Returns a list of supported bridges. The string value will include the name: meek_lite, obfs4
+     */
+    List<String> getListOfSupportedBridges();
 
     String getProxyHost();
 
