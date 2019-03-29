@@ -108,6 +108,16 @@ public final class TorConfigBuilder {
         return this;
     }
 
+    public TorConfigBuilder cookieAuthentication() {
+        buffer.append("CookieAuthentication 1 ").append('\n');
+        return this;
+    }
+
+    @SettingsConfig
+    public TorConfigBuilder cookieAuthenticationFromSettings() {
+        return settings.hasCookieAuthentication() ? cookieAuthentication() : this;
+    }
+    
     public TorConfigBuilder connectionPadding() {
         buffer.append("ConnectionPadding 1").append('\n');
         return this;
