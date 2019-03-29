@@ -138,7 +138,7 @@ public final class TorConfigBuilder {
     }
 
     public TorConfigBuilder disableNetwork() {
-        buffer.append("DisableNetwork 0").append('\n');
+        buffer.append("DisableNetwork 1").append('\n');
         return this;
     }
 
