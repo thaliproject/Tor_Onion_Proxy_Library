@@ -117,6 +117,7 @@ public final class TorConfigBuilder {
 
     public TorConfigBuilder controlPortWriteToFile(String controlPortFile) {
         buffer.append("ControlPortWriteToFile ").append(controlPortFile).append('\n');
+        buffer.append("ControlPort auto\n");
         return this;
     }
 
