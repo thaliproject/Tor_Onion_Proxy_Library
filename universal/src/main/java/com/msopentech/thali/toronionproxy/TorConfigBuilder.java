@@ -17,7 +17,10 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 
 public final class TorConfigBuilder {
 
@@ -331,6 +334,16 @@ public final class TorConfigBuilder {
 
     public void reset() {
         buffer = new StringBuffer();
+    }
+
+    @SettingsConfig
+    public TorConfigBuilder runAsDaemonFromSettings() {
+        return settings.runAsDaemon() ? runAsDaemon() : this;
+    }
+
+    public TorConfigBuilder runAsDaemon() {
+        buffer.append("RunAsDaemon 1").append('\n');
+        return this;
     }
 
     public TorConfigBuilder safeSocksDisable() {

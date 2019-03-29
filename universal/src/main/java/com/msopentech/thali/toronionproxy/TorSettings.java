@@ -70,6 +70,8 @@ public interface TorSettings {
 
     boolean isRelay();
 
+    boolean runAsDaemon();
+
     String transPort();
 
     boolean useSocks5();

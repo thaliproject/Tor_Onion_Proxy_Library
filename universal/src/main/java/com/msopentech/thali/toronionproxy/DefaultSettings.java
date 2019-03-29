@@ -169,6 +169,11 @@ public class DefaultSettings implements TorSettings {
     }
 
     @Override
+    public boolean runAsDaemon() {
+        return true;
+    }
+
+    @Override
     public String transPort() {
         return "9040";
     }
