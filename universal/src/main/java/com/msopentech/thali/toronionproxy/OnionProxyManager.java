@@ -40,7 +40,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
 
 import static com.msopentech.thali.toronionproxy.FileUtilities.setToReadOnlyPermissions;
 import static java.lang.String.format;
@@ -62,7 +61,7 @@ public class OnionProxyManager {
     };
 
     private static final String OWNER = "__OwningControllerProcess";
-    private static final int COOKIE_TIMEOUT = 10 * 1000; // Milliseconds
+    private static final int CONTROL_PORT_TIMEOUT = 10 * 1000; // Milliseconds
     private static final int HOSTNAME_TIMEOUT = 30 * 1000; // Milliseconds
     private static final Logger LOG = LoggerFactory.getLogger(OnionProxyManager.class);
 
@@ -96,8 +95,12 @@ public class OnionProxyManager {
         this.torInstaller = onionProxyContext.getInstaller();
         this.onionProxyContext = onionProxyContext;
         this.config = onionProxyContext.getConfig();
-        this.eventBroadcaster = (eventBroadcaster == null) ? new DefaultEventBroadcaster() :
-                eventBroadcaster;
+        if(eventBroadcaster == null) {
+            LOG.info("Event broadcast is null. Using default one");
+            this.eventBroadcaster = new DefaultEventBroadcaster();
+        } else {
+            this.eventBroadcaster = eventBroadcaster;
+        }
         this.eventHandler = (eventHandler == null) ? new OnionProxyManagerEventHandler() :
                 eventHandler;
     }
@@ -341,38 +344,25 @@ public class OnionProxyManager {
      * Starts tor control service if it isn't already running.
      *
      * @param enableLogs enables system output of tor control
-     * @return true if tor is already running OR tor has been successfully started
      * @throws IOException
      */
     public synchronized void start(boolean enableLogs) throws IOException {
          if (controlConnection != null) {
-            return;
+             LOG.info("Control connection not null. aborting");
+             return;
         }
 
         LOG.info("Starting Tor");
-        if(!onionProxyContext.createCookieAuthFile()) {
-            eventBroadcaster.broadcastNotice("Tor authentication cookie does not exist yet");
-            throw new IOException("Failed to create cookie auth file: "
-                    + onionProxyContext.getConfig().getCookieAuthFile().getAbsolutePath());
-        }
-
-        File cookieFile = config.getCookieAuthFile();
-        WriteObserver cookieObserver = onionProxyContext.createCookieAuthFileObserver();
-
-        // Start a new Tor process
-        String torPath = config.getTorExecutableFile().getAbsolutePath();
-        String torrcFile = config.getTorrcFile().getAbsolutePath();
         String pid = onionProxyContext.getProcessId();
-        String[] cmd = {torPath, "-f", torrcFile, OWNER, pid};
-        String[] env = getEnvironmentArgsForExec();
+        String[] cmd = {torExecutable().getAbsolutePath(), "-f", torrc().getAbsolutePath(), OWNER, pid};
         ProcessBuilder processBuilder = new ProcessBuilder(cmd);
         setEnvironmentArgsAndWorkingDirectoryForStart(processBuilder);
         Process torProcess = null;
         try {
+            LOG.info("Starting process");
+
             torProcess = processBuilder.start();
-            CountDownLatch controlPortCountDownLatch = new CountDownLatch(1);
-            eatStream(torProcess.getInputStream(), false, controlPortCountDownLatch);
-            eatStream(torProcess.getErrorStream(), true, null);
+            eatStream(torProcess.getErrorStream());
 
             // On platforms other than Windows we run as a daemon and so we need to wait for the process to detach
             // or exit. In the case of Windows the equivalent is running as a service and unfortunately that requires
@@ -381,8 +371,13 @@ public class OnionProxyManager {
             // than do that on Windows we just let the process run on the exec and hence don't look for an exit code.
             // This does create a condition where the process has exited due to a problem but we should hopefully
             // detect that when we try to use the control connection.
+
             if (OsData.getOsType() != OsData.OsType.WINDOWS) {
+                LOG.info("Waiting for tor process");
+
                 int exit = torProcess.waitFor();
+                LOG.info("Exit: " + exit);
+
                 torProcess = null;
                 if (exit != 0) {
                     eventBroadcaster.broadcastNotice("Tor exited with value" + exit);
@@ -392,24 +387,23 @@ public class OnionProxyManager {
                 }
             }
 
-            // Wait for the auth cookie file to be created/updated
-            if (cookieFile.length() == 0 && !cookieObserver.poll(COOKIE_TIMEOUT, MILLISECONDS)) {
-                LOG.warn("Auth cookie not created");
+            LOG.info("Waiting for control port");
+            File controlPortFile = getContext().getConfig().getControlPortFile();
+            controlPortFile.createNewFile();
+            WriteObserver controlPortFileObserver = onionProxyContext.createControlPortFileObserver();
+            if (controlPortFile.length() == 0 && !controlPortFileObserver.poll(CONTROL_PORT_TIMEOUT, MILLISECONDS)) {
+                LOG.warn("Control port file not created");
                 FileUtilities.listFilesToLog(config.getDataDir());
-                eventBroadcaster.broadcastNotice("Tor authentication cookie file not created");
+                eventBroadcaster.broadcastNotice("Tor control port file not created");
                 eventBroadcaster.getStatus().stopping();
-                throw new IOException("Auth cookie file not created: " + cookieFile.getAbsolutePath()
-                        + ", len = " + cookieFile.length());
+                throw new IOException("Control port file not created: " + controlPortFile.getAbsolutePath()
+                        + ", len = " + controlPortFile.length());
             }
-
-            eventBroadcaster.broadcastNotice( "Waiting for control port...");
-            // Now we should be able to connect to the new process
-            controlPortCountDownLatch.await();
-
+            String[] controlPortTokens = new String(FileUtilities.read(controlPortFile)).trim().split(":");
+            control_port = Integer.parseInt(controlPortTokens[1]);
             eventBroadcaster.broadcastNotice( "Connecting to control port: " + control_port);
-            controlSocket = new Socket("127.0.0.1", control_port);
+            controlSocket = new Socket(controlPortTokens[0].split("=")[1], control_port);
 
-            // Open a control connection and authenticate using the cookie file
             TorControlConnection controlConnection = new TorControlConnection(controlSocket);
             eventBroadcaster.broadcastNotice( "SUCCESS connected to Tor control port.");
 
@@ -417,7 +411,7 @@ public class OnionProxyManager {
                 controlConnection.setDebugging(System.out);
             }
 
-            controlConnection.authenticate(FileUtilities.read(cookieFile));
+            controlConnection.authenticate(FileUtilities.read(config.getCookieAuthFile()));
             eventBroadcaster.broadcastNotice("SUCCESS - authenticated to control port.");
 
             controlConnection.resetConf(Collections.singletonList(OWNER));
@@ -450,29 +444,16 @@ public class OnionProxyManager {
         }
     }
 
-    private void eatStream(final InputStream inputStream, final boolean stdError, final CountDownLatch countDownLatch) {
+    private void eatStream(final InputStream inputStream) {
         new Thread() {
             @Override
             public void run() {
                 Scanner scanner = new Scanner(inputStream);
                 try {
                     while (scanner.hasNextLine()) {
-                        if (stdError) {
-                            LOG.error(scanner.nextLine());
-                        } else {
-                            String nextLine = scanner.nextLine();
-                            // We need to find the line where it tells us what the control port is.
-                            // The line that will appear in stdio with the control port looks like:
-                            // Control listener listening on port 39717.
-                            if (nextLine.contains("Control listener listening on port ")) {
-                                // For the record, I hate regex so I'm doing this manually
-                                control_port =
-                                        Integer.parseInt(
-                                                nextLine.substring(nextLine.lastIndexOf(" ") + 1, nextLine.length() - 1));
-                                countDownLatch.countDown();
-                            }
-                            LOG.info(nextLine);
-                        }
+                        String error = scanner.nextLine();
+                        LOG.error(error);
+                        eventBroadcaster.broadcastException(error, new Exception());
                     }
                 } finally {
                     try {
@@ -485,6 +466,27 @@ public class OnionProxyManager {
         }.start();
     }
 
+    private File torExecutable() throws IOException {
+        File torExe = config.getTorExecutableFile();
+        if(torExe == null || !torExe.exists()) {
+            eventBroadcaster.broadcastNotice("Tor executable not found");
+            eventBroadcaster.getStatus().stopping();
+            LOG.error("Tor executable not found: " + (torExe != null ? torExe.getAbsolutePath() : "N/A"));
+            throw new IOException("Tor executable not found");
+        }
+        return torExe;
+    }
+
+    private File torrc() throws IOException {
+        File torrc = config.getTorrcFile();
+        if(torrc == null || !torrc.exists()) {
+            eventBroadcaster.broadcastNotice("Torrc not found");
+            eventBroadcaster.getStatus().stopping();
+            LOG.error("Torrc not found: " + (torrc != null ? torrc.getAbsolutePath() : "N/A"));
+            throw new IOException("Torrc not found");
+        }
+        return torrc;
+    }
 
     /**
      * Sets environment variables and working directory needed for Tor

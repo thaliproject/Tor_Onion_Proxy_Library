@@ -170,13 +170,13 @@ abstract public class OnionProxyContext {
     }
 
     /**
-     * Creates an observer for the configured cookie auth file
+     * Creates an observer for the configured control port file
      *
      * @return write observer for cookie auth file
      */
-    public final WriteObserver createCookieAuthFileObserver() throws IOException {
+    public final WriteObserver createControlPortFileObserver() throws IOException {
         synchronized (cookieLock) {
-            return generateWriteObserver(config.getCookieAuthFile());
+            return generateWriteObserver(config.getControlPortFile());
         }
     }
 
