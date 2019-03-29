@@ -50,6 +50,8 @@ public interface TorSettings {
 
     boolean hasConnectionPadding();
 
+    boolean hasCookieAuthentication();
+
     boolean hasDebugLogs();
 
     boolean hasIsolationAddressFlagForTunnel();

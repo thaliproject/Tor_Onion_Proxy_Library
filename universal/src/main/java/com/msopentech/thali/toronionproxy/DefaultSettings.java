@@ -119,6 +119,11 @@ public class DefaultSettings implements TorSettings {
     }
 
     @Override
+    public boolean hasCookieAuthentication() {
+        return true;
+    }
+
+    @Override
     public boolean hasDebugLogs() {
         return false;
     }
