@@ -343,7 +343,7 @@ public final class TorConfig {
          * @return torConfig
          */
         public TorConfig build() {
-            if(homeDir != null) {
+            if(homeDir == null) {
                 String userHome = System.getProperty("user.home");
                 homeDir = (userHome != null && !"".equals(userHome)) ? new File(userHome) : configDir;
             }

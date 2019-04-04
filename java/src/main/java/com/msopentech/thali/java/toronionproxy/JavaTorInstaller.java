@@ -102,7 +102,6 @@ public final class JavaTorInstaller extends TorInstaller {
         try {
             LOG.info("Updating torrc file; torrc =" + config.getTorrcFile().getAbsolutePath());
             printWriter = new PrintWriter(new BufferedWriter(new FileWriter(config.getTorrcFile(), true)));
-            printWriter.println("CookieAuthFile " + config.getCookieAuthFile().getAbsolutePath());
             printWriter.println("PidFile " + new File(config.getDataDir(), "pid").getAbsolutePath());
             printWriter.print(content);
         } finally {

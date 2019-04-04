@@ -110,6 +110,7 @@ public final class TorConfigBuilder {
 
     public TorConfigBuilder cookieAuthentication() {
         buffer.append("CookieAuthentication 1 ").append('\n');
+        buffer.append("CookieAuthFile ").append(context.getConfig().getCookieAuthFile().getAbsolutePath()).append("\n");
         return this;
     }
 
