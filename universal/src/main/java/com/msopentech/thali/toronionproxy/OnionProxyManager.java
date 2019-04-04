@@ -449,10 +449,14 @@ public class OnionProxyManager {
 
     private File torExecutable() throws IOException {
         File torExe = config.getTorExecutableFile();
-        if(torExe == null || !torExe.exists()) {
+        //Try removing platform specific extension
+        if(!torExe.exists()) {
+            torExe = new File(torExe.getParent(), "tor");
+        }
+        if(!torExe.exists()) {
             eventBroadcaster.broadcastNotice("Tor executable not found");
             eventBroadcaster.getStatus().stopping();
-            LOG.error("Tor executable not found: " + (torExe != null ? torExe.getAbsolutePath() : "N/A"));
+            LOG.error("Tor executable not found: " + torExe.getAbsolutePath());
             throw new IOException("Tor executable not found");
         }
         return torExe;
