@@ -53,7 +53,6 @@ public class AndroidTorInstaller extends TorInstaller {
         if(torrcFile == null) {
             throw new FileNotFoundException("Unable to find torrc file. Have you installed Tor resources?");
         }
-        System.out.println(content);
         resourceInstaller.updateTorConfigCustom(torrcFile, content);
     }
 

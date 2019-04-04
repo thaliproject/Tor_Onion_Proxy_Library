@@ -35,9 +35,7 @@ import net.freehaven.tor.control.TorControlConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.Socket;
 import java.util.*;
 
@@ -61,7 +59,7 @@ public class OnionProxyManager {
     };
 
     private static final String OWNER = "__OwningControllerProcess";
-    private static final int CONTROL_PORT_TIMEOUT = 10 * 1000; // Milliseconds
+    private static final int FILE_OBSERVER_TIMEOUT = 10 * 1000; // Milliseconds
     private static final int HOSTNAME_TIMEOUT = 30 * 1000; // Milliseconds
     private static final Logger LOG = LoggerFactory.getLogger(OnionProxyManager.class);
 
@@ -353,49 +351,31 @@ public class OnionProxyManager {
         }
 
         LOG.info("Starting Tor");
+        File controlPortFile = this.getContext().getConfig().getControlPortFile();
+        if(!controlPortFile.getParentFile().exists()) controlPortFile.getParentFile().mkdirs();
+
+        File cookieAuthFile = this.getContext().getConfig().getCookieAuthFile();
+        if(!cookieAuthFile.getParentFile().exists()) cookieAuthFile.getParentFile().mkdirs();
+
         String pid = onionProxyContext.getProcessId();
         String[] cmd = {torExecutable().getAbsolutePath(), "-f", torrc().getAbsolutePath(), OWNER, pid};
         ProcessBuilder processBuilder = new ProcessBuilder(cmd);
         setEnvironmentArgsAndWorkingDirectoryForStart(processBuilder);
-        Process torProcess = null;
         try {
             LOG.info("Starting process");
 
-            torProcess = processBuilder.start();
+            Process torProcess = processBuilder.start();
             eatStream(torProcess.getErrorStream());
 
-            // On platforms other than Windows we run as a daemon and so we need to wait for the process to detach
-            // or exit. In the case of Windows the equivalent is running as a service and unfortunately that requires
-            // managing the service, such as turning it off or uninstalling it when it's time to move on. Any number
-            // of errors can prevent us from doing the cleanup and so we would leave the process running around. Rather
-            // than do that on Windows we just let the process run on the exec and hence don't look for an exit code.
-            // This does create a condition where the process has exited due to a problem but we should hopefully
-            // detect that when we try to use the control connection.
-
-            if (OsData.getOsType() != OsData.OsType.WINDOWS) {
-                LOG.info("Waiting for tor process");
-
-                int exit = torProcess.waitFor();
-                LOG.info("Exit: " + exit);
-
-                torProcess = null;
-                if (exit != 0) {
-                    eventBroadcaster.broadcastNotice("Tor exited with value" + exit);
-                    eventBroadcaster.getStatus().stopping();
-                    LOG.warn("Tor exited with value " + exit);
-                    throw new IOException("Tor exited with value: " + exit);
-                }
-            }
-
             LOG.info("Waiting for control port");
-            File controlPortFile = getContext().getConfig().getControlPortFile();
-            controlPortFile.createNewFile();
+            boolean isCreated = controlPortFile.exists() || controlPortFile.createNewFile();
             WriteObserver controlPortFileObserver = onionProxyContext.createControlPortFileObserver();
-            if (controlPortFile.length() == 0 && !controlPortFileObserver.poll(CONTROL_PORT_TIMEOUT, MILLISECONDS)) {
+            if (!isCreated || (controlPortFile.length() == 0 && !controlPortFileObserver.poll(FILE_OBSERVER_TIMEOUT, MILLISECONDS))) {
                 LOG.warn("Control port file not created");
                 FileUtilities.listFilesToLog(config.getDataDir());
                 eventBroadcaster.broadcastNotice("Tor control port file not created");
                 eventBroadcaster.getStatus().stopping();
+                torProcess.destroy();
                 throw new IOException("Control port file not created: " + controlPortFile.getAbsolutePath()
                         + ", len = " + controlPortFile.length());
             }
@@ -411,7 +391,20 @@ public class OnionProxyManager {
                 controlConnection.setDebugging(System.out);
             }
 
+            LOG.info("Waiting for cookie auth file");
+            isCreated = cookieAuthFile.exists() || cookieAuthFile.createNewFile();
+            WriteObserver cookieAuthFileObserver = onionProxyContext.createCookieAuthFileObserver();
+            if (!isCreated || (cookieAuthFile.length() == 0 && !cookieAuthFileObserver.poll(FILE_OBSERVER_TIMEOUT, MILLISECONDS))) {
+                LOG.warn("Cookie Auth file not created");
+                eventBroadcaster.broadcastNotice("Cookie Auth file not created");
+                eventBroadcaster.getStatus().stopping();
+                torProcess.destroy();
+                throw new IOException("Cookie Auth file not created: " + cookieAuthFile.getAbsolutePath()
+                        + ", len = " + cookieAuthFile.length());
+            }
+
             controlConnection.authenticate(FileUtilities.read(config.getCookieAuthFile()));
+
             eventBroadcaster.broadcastNotice("SUCCESS - authenticated to control port.");
 
             controlConnection.resetConf(Collections.singletonList(OWNER));
@@ -429,18 +422,6 @@ public class OnionProxyManager {
         } catch (SecurityException e) {
             LOG.warn(e.toString(), e);
             throw new IOException(e);
-        } catch (InterruptedException e) {
-            LOG.warn("Interrupted while starting Tor", e);
-            Thread.currentThread().interrupt();
-            throw new IOException(e);
-        } finally {
-            if (controlConnection == null && torProcess != null) {
-                // It's possible that something 'bad' could happen after we executed exec but before we takeOwnership()
-                // in which case the Tor OP will hang out as a zombie until this process is killed. This is problematic
-                // when we want to do things like
-                LOG.warn("Destroying tor process");
-                torProcess.destroy();
-            }
         }
     }
 

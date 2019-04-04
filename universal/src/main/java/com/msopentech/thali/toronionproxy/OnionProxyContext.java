@@ -180,6 +180,11 @@ abstract public class OnionProxyContext {
         }
     }
 
+    public final WriteObserver createCookieAuthFileObserver() throws IOException {
+        synchronized (cookieLock) {
+            return generateWriteObserver(config.getCookieAuthFile());
+        }
+    }
     /**
      * Creates an observer for the configured hostname file
      *

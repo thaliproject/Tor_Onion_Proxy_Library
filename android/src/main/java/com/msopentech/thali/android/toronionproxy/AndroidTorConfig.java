@@ -13,18 +13,19 @@ See the Apache 2 License for the specific language governing permissions and lim
 package com.msopentech.thali.android.toronionproxy;
 
 import android.content.Context;
+import android.util.Log;
 import com.msopentech.thali.toronionproxy.TorConfig;
 
 import java.io.File;
 
 import static android.content.Context.MODE_PRIVATE;
-import static org.torproject.android.binary.TorServiceConstants.TOR_ASSET_KEY;
 
 /**
  * Creates config file that is compatible with Android.
  */
 public class AndroidTorConfig {
 
+    private static final String TAG = "AndroidTorConfig";
     /**
      * Creates a tor config file, where installDir is the directory containing the tor executables and native libraries.
      * This should reference the native library folder managed by Android.
@@ -37,14 +38,14 @@ public class AndroidTorConfig {
         File configDir = context.getDir(configDirName, MODE_PRIVATE);
 
         if(torExecutable.exists()) {
+            Log.d(TAG, "Tor executable exists in native library directory: " + nativeDir.getAbsolutePath());
             TorConfig.Builder builder = new TorConfig.Builder(nativeDir, configDir);
-            builder.homeDir(nativeDir);
             return builder.build();
         } else {
             File alternativeInstallDir = context.getDir(alternativeInstallDirName, MODE_PRIVATE);
+            Log.d(TAG, "Setting Tor executable to alternative installation directory: "
+                    + alternativeInstallDir.getAbsolutePath());
             TorConfig.Builder builder = new TorConfig.Builder(alternativeInstallDir, configDir);
-            builder.dataDir(new File(configDir, ".tor"));
-            builder.homeDir(alternativeInstallDir);
             return builder.build();
         }
     }
