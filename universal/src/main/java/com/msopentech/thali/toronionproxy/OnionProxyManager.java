@@ -35,13 +35,15 @@ import net.freehaven.tor.control.TorControlConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.Socket;
 import java.util.*;
 
 import static com.msopentech.thali.toronionproxy.FileUtilities.setToReadOnlyPermissions;
 import static java.lang.String.format;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * This is where all the fun is, this is the class that handles the heavy work. Note that you will most likely need
@@ -59,8 +61,7 @@ public class OnionProxyManager {
     };
 
     private static final String OWNER = "__OwningControllerProcess";
-    private static final int FILE_OBSERVER_TIMEOUT = 10 * 1000; // Milliseconds
-    private static final int HOSTNAME_TIMEOUT = 30 * 1000; // Milliseconds
+    private static final int HOSTNAME_TIMEOUT = 30;
     private static final Logger LOG = LoggerFactory.getLogger(OnionProxyManager.class);
 
     private final OnionProxyContext onionProxyContext;
@@ -221,7 +222,7 @@ public class OnionProxyManager {
         controlConnection.setConf(config);
         controlConnection.saveConf();
         // Wait for the hostname file to be created/updated
-        if (!hostNameFileObserver.poll(HOSTNAME_TIMEOUT, MILLISECONDS)) {
+        if (!hostNameFileObserver.poll(HOSTNAME_TIMEOUT, SECONDS)) {
             FileUtilities.listFilesToLog(hostnameFile.getParentFile());
             throw new RuntimeException("Wait for hidden service hostname file to be created expired.");
         }
@@ -367,10 +368,11 @@ public class OnionProxyManager {
             Process torProcess = processBuilder.start();
             eatStream(torProcess.getErrorStream());
 
+            long controlPortStartTime = System.currentTimeMillis();
             LOG.info("Waiting for control port");
             boolean isCreated = controlPortFile.exists() || controlPortFile.createNewFile();
             WriteObserver controlPortFileObserver = onionProxyContext.createControlPortFileObserver();
-            if (!isCreated || (controlPortFile.length() == 0 && !controlPortFileObserver.poll(FILE_OBSERVER_TIMEOUT, MILLISECONDS))) {
+            if (!isCreated || (controlPortFile.length() == 0 && !controlPortFileObserver.poll(config.getFileCreationTimeout(), SECONDS))) {
                 LOG.warn("Control port file not created");
                 FileUtilities.listFilesToLog(config.getDataDir());
                 eventBroadcaster.broadcastNotice("Tor control port file not created");
@@ -379,6 +381,7 @@ public class OnionProxyManager {
                 throw new IOException("Control port file not created: " + controlPortFile.getAbsolutePath()
                         + ", len = " + controlPortFile.length());
             }
+            LOG.info("Created control port file: time = " + (System.currentTimeMillis() - controlPortStartTime) + "ms");
             String[] controlPortTokens = new String(FileUtilities.read(controlPortFile)).trim().split(":");
             control_port = Integer.parseInt(controlPortTokens[1]);
             eventBroadcaster.broadcastNotice( "Connecting to control port: " + control_port);
@@ -391,10 +394,11 @@ public class OnionProxyManager {
                 controlConnection.setDebugging(System.out);
             }
 
+            long cookieAuthStartTime = System.currentTimeMillis();
             LOG.info("Waiting for cookie auth file");
             isCreated = cookieAuthFile.exists() || cookieAuthFile.createNewFile();
             WriteObserver cookieAuthFileObserver = onionProxyContext.createCookieAuthFileObserver();
-            if (!isCreated || (cookieAuthFile.length() == 0 && !cookieAuthFileObserver.poll(FILE_OBSERVER_TIMEOUT, MILLISECONDS))) {
+            if (!isCreated || (cookieAuthFile.length() == 0 && !cookieAuthFileObserver.poll(config.getFileCreationTimeout(), SECONDS))) {
                 LOG.warn("Cookie Auth file not created");
                 eventBroadcaster.broadcastNotice("Cookie Auth file not created");
                 eventBroadcaster.getStatus().stopping();
@@ -402,6 +406,7 @@ public class OnionProxyManager {
                 throw new IOException("Cookie Auth file not created: " + cookieAuthFile.getAbsolutePath()
                         + ", len = " + cookieAuthFile.length());
             }
+            LOG.info("Created cookie auth file: time = " + (System.currentTimeMillis() - cookieAuthStartTime) + "ms");
 
             controlConnection.authenticate(FileUtilities.read(config.getCookieAuthFile()));
 

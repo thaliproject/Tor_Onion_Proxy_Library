@@ -39,6 +39,7 @@ public final class TorConfig {
     private File resolveConf;
     private File controlPortFile;
     private File installDir;
+    private int fileCreationTimeout;
 
     /**
      * Creates simplest default config. All tor files will be relative to the configDir root.
@@ -163,6 +164,17 @@ public final class TorConfig {
         return cookieAuthFile;
     }
 
+    /**
+     * When tor starts it waits for the control port and cookie auth files to be created before it proceeds to the
+     * next step in startup. If these files are not created after a certain amount of time, then the startup has
+     * failed.
+     *
+     * This method returns how much time to wait in seconds until failing the startup.
+     */
+    public int getFileCreationTimeout() {
+        return fileCreationTimeout;
+    }
+
     @Override
     public String toString() {
         return "TorConfig{" +
@@ -200,6 +212,7 @@ public final class TorConfig {
         private File resolveConf;
         private File controlPortFile;
         private File installDir;
+        private int fileCreationTimeout;
 
         /**
          * Constructs a builder with the specified configDir and installDir. The install directory contains executable
@@ -338,6 +351,20 @@ public final class TorConfig {
         }
 
         /**
+         * When tor starts it waits for the control port and cookie auth files to be created before it proceeds to the
+         * next step in startup. If these files are not created after a certain amount of time, then the startup has
+         * failed.
+         *
+         * This method specifies how much time to wait until failing the startup.
+         *
+         * @param timeout in seconds
+         */
+        public Builder fileCreationTimeout(int timeout) {
+            this.fileCreationTimeout = timeout;
+            return this;
+        }
+
+        /**
          * Builds torConfig and sets default values if not explicitly configured through builder.
          *
          * @return torConfig
@@ -392,6 +419,10 @@ public final class TorConfig {
                 controlPortFile = new File(dataDir, "control.txt");
             }
 
+            if(fileCreationTimeout <= 0) {
+                fileCreationTimeout = 15;
+            }
+
             TorConfig config = new TorConfig();
             config.hiddenServiceDir = hiddenServiceDir;
             config.torExecutableFile = torExecutableFile;
@@ -407,6 +438,7 @@ public final class TorConfig {
             config.resolveConf = resolveConf;
             config.controlPortFile = controlPortFile;
             config.installDir = installDir;
+            config.fileCreationTimeout = fileCreationTimeout;
             return config;
         }
 
