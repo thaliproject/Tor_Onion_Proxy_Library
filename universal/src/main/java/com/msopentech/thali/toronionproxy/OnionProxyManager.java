@@ -353,9 +353,11 @@ public class OnionProxyManager {
 
         LOG.info("Starting Tor");
         File controlPortFile = this.getContext().getConfig().getControlPortFile();
+        controlPortFile.delete();
         if(!controlPortFile.getParentFile().exists()) controlPortFile.getParentFile().mkdirs();
 
         File cookieAuthFile = this.getContext().getConfig().getCookieAuthFile();
+        cookieAuthFile.delete();
         if(!cookieAuthFile.getParentFile().exists()) cookieAuthFile.getParentFile().mkdirs();
 
         String pid = onionProxyContext.getProcessId();
