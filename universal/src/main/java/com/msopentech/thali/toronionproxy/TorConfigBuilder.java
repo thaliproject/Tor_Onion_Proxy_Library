@@ -96,7 +96,6 @@ public final class TorConfigBuilder {
                     .getCanonicalPath());
         }
 
-        useBridges();
         if (supportedBridges.contains("obfs3") || supportedBridges.contains("obfs4")) {
             transportPluginObfs(pluggableTransportClient.getCanonicalPath());
         }
@@ -504,16 +503,19 @@ public final class TorConfigBuilder {
         if (input == null || isNullOrEmpty(bridgeType) || maxBridges < 1) {
             return;
         }
+        boolean hasAddedBridge = false;
         List<Bridge> bridges = readBridgesFromStream(input);
         Collections.shuffle(bridges, new Random(System.nanoTime()));
         int bridgeCount = 0;
         for (Bridge b : bridges) {
             if (b.type.equals(bridgeType)) {
                 bridge(b.type, b.config);
+                hasAddedBridge = true;
                 if (++bridgeCount > maxBridges)
                     break;
             }
         }
+        if(hasAddedBridge) useBridges();
     }
 
     private static List<Bridge> readBridgesFromStream(InputStream input)  {
