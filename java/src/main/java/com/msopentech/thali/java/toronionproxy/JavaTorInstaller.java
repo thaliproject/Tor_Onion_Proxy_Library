@@ -28,7 +28,10 @@ import static com.msopentech.thali.toronionproxy.FileUtilities.setPerms;
  *
  <pre>
  String fileStorageLocation = "torfiles";
- OnionProxyManager onionProxyManager = new OnionProxyManager(new JavaOnionProxyContext(Files.createTempDirectory(fileStorageLocation).toFile()));
+ TorConfig torConfig = TorConfig.createDefault(Files.createTempDirectory(fileStorageLocation).toFile());
+ TorInstaller torInstaller = new JavaTorInstaller(torConfig);
+ OnionProxyContext context = new JavaOnionProxyContext(torConfig, torInstaller, null);
+ OnionProxyManager onionProxyManager = new OnionProxyManager(context);
 
  TorConfigBuilder builder = onionProxyManager.getContext().newConfigBuilder().updateTorConfig();
  onionProxyManager.getContext().getInstaller().updateTorConfigCustom(builder.asString());
@@ -42,11 +45,9 @@ public final class JavaTorInstaller extends TorInstaller {
 
     private final TorConfig config;
 
-    private final OnionProxyContext context;
 
-    public JavaTorInstaller(OnionProxyContext context) {
-        this.context = context;
-        this.config = context.getConfig();
+    public JavaTorInstaller(TorConfig config) {
+        this.config = config;
     }
 
     /**
@@ -73,10 +74,6 @@ public final class JavaTorInstaller extends TorInstaller {
     @Override
     public void setup() throws IOException {
         LOG.info("Setting up tor");
-        if (!context.createDataDir()) {
-            throw new IOException("Could not create data directory!");
-        }
-
         LOG.info("Installing resources: geoip=" + config.getGeoIpFile().getAbsolutePath());
         cleanInstallOneFile(getAssetOrResourceByName(TorConfig.GEO_IP_NAME), config.getGeoIpFile());
         cleanInstallOneFile(getAssetOrResourceByName(TorConfig.GEO_IPV_6_NAME), config.getGeoIpv6File());

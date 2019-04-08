@@ -69,6 +69,8 @@ package com.msopentech.thali.toronionproxy;
 
 import com.msopentech.thali.android.toronionproxy.AndroidOnionProxyManager;
 
+import com.msopentech.thali.android.toronionproxy.AndroidTorConfig;
+import com.msopentech.thali.android.toronionproxy.AndroidTorInstaller;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.slf4j.Logger;
@@ -96,8 +98,10 @@ public class TorOnionProxySmokeTest  {
     private static final Logger LOG = LoggerFactory.getLogger(TorOnionProxySmokeTest.class);
 
     public OnionProxyManager getOnionProxyManager(String workingSubDirectoryName) {
-        return new AndroidOnionProxyManager(getContext(), workingSubDirectoryName,
-                workingSubDirectoryName, null, null, null);
+        File installDir = new File(workingSubDirectoryName);
+        TorConfig torConfig = AndroidTorConfig.createConfig(installDir, installDir, getContext());
+        return new AndroidOnionProxyManager(getContext(), torConfig, new AndroidTorInstaller(getContext(), installDir),
+                null, null, null);
     }
     /**
      * Start two TorOPs, one for a hidden service and one for a client. Have the hidden service op stop and start
