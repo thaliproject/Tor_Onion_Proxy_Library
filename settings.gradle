@@ -1,2 +1,2 @@
 rootProject.name = 'project'
-include 'universal', 'java', 'android'
+include 'universal', 'java', 'android', 'android_tor_installer'

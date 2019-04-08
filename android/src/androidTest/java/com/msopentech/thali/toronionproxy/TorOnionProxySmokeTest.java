@@ -70,7 +70,6 @@ package com.msopentech.thali.toronionproxy;
 import com.msopentech.thali.android.toronionproxy.AndroidOnionProxyManager;
 
 import com.msopentech.thali.android.toronionproxy.AndroidTorConfig;
-import com.msopentech.thali.android.toronionproxy.AndroidTorInstaller;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.slf4j.Logger;
@@ -100,7 +99,7 @@ public class TorOnionProxySmokeTest  {
     public OnionProxyManager getOnionProxyManager(String workingSubDirectoryName) {
         File installDir = new File(workingSubDirectoryName);
         TorConfig torConfig = AndroidTorConfig.createConfig(installDir, installDir, getContext());
-        return new AndroidOnionProxyManager(getContext(), torConfig, new AndroidTorInstaller(getContext(), installDir),
+        return new AndroidOnionProxyManager(getContext(), torConfig, new TestTorInstaller(getContext(), installDir),
                 null, null, null);
     }
     /**
