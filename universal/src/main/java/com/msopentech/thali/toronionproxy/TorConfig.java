@@ -109,7 +109,7 @@ public final class TorConfig {
         return geoIpv6File;
     }
 
-    public File getTorrcFile() throws IOException {
+    public File getTorrcFile() {
         return torrcFile;
     }
 
