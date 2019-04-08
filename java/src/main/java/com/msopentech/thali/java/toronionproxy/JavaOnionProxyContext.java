@@ -23,22 +23,13 @@ public final class JavaOnionProxyContext extends OnionProxyContext {
      * Constructs a Java specific <code>OnionProxyContext</code>
      * @param config
      */
-    public JavaOnionProxyContext(TorConfig config, TorSettings settings) {
-        super(config, settings);
-    }
-
-    public JavaOnionProxyContext(File configDir) {
-        super(configDir);
+    public JavaOnionProxyContext(TorConfig config, TorInstaller torInstaller, TorSettings settings) {
+        super(config, torInstaller, settings);
     }
 
     @Override
     public WriteObserver generateWriteObserver(File file) throws IOException {
         return new JavaWatchObserver(file);
-    }
-
-    @Override
-    public TorInstaller getInstaller() {
-        return new JavaTorInstaller(this);
     }
 
     @Override

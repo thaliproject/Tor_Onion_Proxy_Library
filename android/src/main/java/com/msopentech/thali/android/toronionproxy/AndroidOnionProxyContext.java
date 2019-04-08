@@ -13,18 +13,11 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.android.toronionproxy;
 
-import com.msopentech.thali.toronionproxy.OnionProxyContext;
-import com.msopentech.thali.toronionproxy.TorInstaller;
-import com.msopentech.thali.toronionproxy.TorSettings;
-import com.msopentech.thali.toronionproxy.WriteObserver;
-
-import android.content.Context;
+import com.msopentech.thali.toronionproxy.*;
 
 import java.io.File;
 
 public class AndroidOnionProxyContext extends OnionProxyContext {
-
-    private final Context context;
 
     /**
      * Constructs instance of AndroidOnionProxyContext. We provide an alternativeInstallDir here. If the Android
@@ -34,19 +27,13 @@ public class AndroidOnionProxyContext extends OnionProxyContext {
      * configDir is a writable directory for tor config and data information.
      *
      */
-    public AndroidOnionProxyContext(Context context, String alternativeInstallDir, String configDirName, TorSettings settings) {
-        super(AndroidTorConfig.createConfig(alternativeInstallDir, configDirName, context), settings);
-        this.context = context;
+    public AndroidOnionProxyContext(TorConfig torConfig, TorInstaller torInstaller, TorSettings settings) {
+        super(torConfig, torInstaller, settings);
     }
 
     @Override
     public WriteObserver generateWriteObserver(File file) {
         return new AndroidWriteObserver(file);
-    }
-
-    @Override
-    public TorInstaller getInstaller() {
-        return new AndroidTorInstaller(context, getConfig().getConfigDir());
     }
 
     @Override

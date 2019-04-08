@@ -93,7 +93,7 @@ task copyPluggableTransports(type: Copy) {
     from "../external/pluto/bin"
     into "src/main/jniLibs"
     rename { filename ->
-        filename.replace 'obfs4proxy', 'obfs4proxy.so'
+        filename.replace 'obfs4proxy', 'libObfs4proxy.so'
     }
 }
 

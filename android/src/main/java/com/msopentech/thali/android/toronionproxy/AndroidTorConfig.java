@@ -32,17 +32,15 @@ public class AndroidTorConfig {
      *
      * The configDirName contains the location of user writable config files and data.
      */
-    public static TorConfig createConfig(String alternativeInstallDirName, String configDirName, Context context) {
+    public static TorConfig createConfig(File alternativeInstallDir, File configDir, Context context) {
         File nativeDir = new File(context.getApplicationInfo().nativeLibraryDir);
         File torExecutable = new File(nativeDir,  "tor.so");
-        File configDir = context.getDir(configDirName, MODE_PRIVATE);
 
         if(torExecutable.exists()) {
             Log.d(TAG, "Tor executable exists in native library directory: " + nativeDir.getAbsolutePath());
             TorConfig.Builder builder = new TorConfig.Builder(nativeDir, configDir);
             return builder.build();
         } else {
-            File alternativeInstallDir = context.getDir(alternativeInstallDirName, MODE_PRIVATE);
             Log.d(TAG, "Setting Tor executable to alternative installation directory: "
                     + alternativeInstallDir.getAbsolutePath());
             TorConfig.Builder builder = new TorConfig.Builder(alternativeInstallDir, configDir);

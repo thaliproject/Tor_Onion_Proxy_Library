@@ -29,9 +29,7 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.android.toronionproxy;
 
-import com.msopentech.thali.toronionproxy.EventBroadcaster;
-import com.msopentech.thali.toronionproxy.OnionProxyManager;
-import com.msopentech.thali.toronionproxy.TorSettings;
+import com.msopentech.thali.toronionproxy.*;
 
 import net.freehaven.tor.control.EventHandler;
 
@@ -45,6 +43,7 @@ import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 
+import java.io.File;
 import java.io.IOException;
 
 import static android.content.Context.CONNECTIVITY_SERVICE;
@@ -59,10 +58,10 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
 
     private final Context context;
 
-    public AndroidOnionProxyManager(Context context, String alternativeInstallDir, String configDirName, TorSettings settings,
+    public AndroidOnionProxyManager(Context context, TorConfig torConfig,
+                                    TorInstaller torInstaller, TorSettings settings,
                                     EventBroadcaster eventBroadcaster, EventHandler eventHandler) {
-        super(new AndroidOnionProxyContext(context, alternativeInstallDir, configDirName, settings),
-                eventBroadcaster, eventHandler);
+        super(new AndroidOnionProxyContext(torConfig, torInstaller, settings), eventBroadcaster, eventHandler);
         this.context = context;
     }
 

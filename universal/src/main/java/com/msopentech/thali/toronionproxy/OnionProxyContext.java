@@ -46,6 +46,8 @@ abstract public class OnionProxyContext {
 
     private final TorSettings settings;
 
+    private final TorInstaller torInstaller;
+
     /**
      * Constructs instance of <code>OnionProxyContext</code> with specified configDir. Use this constructor when
      * all tor files (including the executable) are under a single directory. Currently, this is used with installers
@@ -54,8 +56,8 @@ abstract public class OnionProxyContext {
      * @param configDir
      * @throws IllegalArgumentException if specified config in null
      */
-    public OnionProxyContext(File configDir) {
-        this(TorConfig.createDefault(configDir), null);
+    public OnionProxyContext(File configDir, TorInstaller torInstaller) {
+        this(TorConfig.createDefault(configDir), torInstaller, null);
     }
 
     /**
@@ -66,12 +68,16 @@ abstract public class OnionProxyContext {
      * @param torConfig tor configuration info used for running and installing tor
      * @throws IllegalArgumentException if specified config in null
      */
-    public OnionProxyContext(TorConfig torConfig, TorSettings settings) {
+    public OnionProxyContext(TorConfig torConfig, TorInstaller torInstaller, TorSettings settings) {
         if (torConfig == null) {
             throw new IllegalArgumentException("torConfig is null");
         }
+        if(torInstaller == null) {
+            throw new IllegalArgumentException("torInstaller is null");
+        }
         this.config = torConfig;
         this.settings = settings == null ? new DefaultSettings() : settings;
+        this.torInstaller = torInstaller;
     }
 
 
@@ -213,6 +219,8 @@ abstract public class OnionProxyContext {
 
     public abstract WriteObserver generateWriteObserver(File file) throws IOException;
 
-    public abstract TorInstaller getInstaller();
+    public final TorInstaller getInstaller() {
+        return torInstaller;
+    }
 
 }
