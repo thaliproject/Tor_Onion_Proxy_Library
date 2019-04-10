@@ -22,7 +22,7 @@ android {
         targetSdkVersion 26
         versionCode 1
         versionName "0.0.3"
-
+        consumerProguardFiles 'proguard-rules.pro'
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
 
     }
