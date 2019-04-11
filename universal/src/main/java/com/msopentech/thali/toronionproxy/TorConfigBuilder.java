@@ -523,7 +523,7 @@ public final class TorConfigBuilder {
         try {
             BufferedReader br = new BufferedReader(new InputStreamReader(input, "UTF-8"));
             for (String line = br.readLine(); line != null; line = br.readLine()) {
-                String[] tokens = line.split(" ", 1);
+                String[] tokens = line.split("\\s+", 2);
                 if (tokens.length != 2) {
                     continue;//bad entry
                 }
