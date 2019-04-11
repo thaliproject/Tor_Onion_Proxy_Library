@@ -100,3 +100,12 @@ task copyPluggableTransports(type: Copy) {
 gradle.projectsEvaluated {
     preBuild.dependsOn(copyPluggableTransports)
 }
+
+task sourcesJar(type: Jar) {
+    from android.sourceSets.main.java.srcDirs
+    classifier = 'sources'
+}
+
+artifacts {
+    archives sourcesJar
+}
