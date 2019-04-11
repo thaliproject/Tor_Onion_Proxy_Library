@@ -20,4 +20,13 @@ dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 
+task sourcesJar(type:Jar){
+    from sourceSets.main.allSource
+    classifier = 'source'
+}
+
+artifacts {
+    archives sourcesJar
+}
+
 
