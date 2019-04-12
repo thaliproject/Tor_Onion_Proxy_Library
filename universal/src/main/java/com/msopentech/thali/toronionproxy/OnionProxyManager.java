@@ -129,7 +129,7 @@ public class OnionProxyManager {
 
         try {
             for (int retryCount = 0; retryCount < numberOfRetries; ++retryCount) {
-                start(enableLogging);
+                start();
 
                 // We will check every second to see if boot strapping has finally finished
                 for (int secondsWaited = 0; secondsWaited < secondsBeforeTimeOut; ++secondsWaited) {
@@ -342,10 +342,9 @@ public class OnionProxyManager {
     /**
      * Starts tor control service if it isn't already running.
      *
-     * @param enableLogs enables system output of tor control
      * @throws IOException
      */
-    public synchronized void start(boolean enableLogs) throws IOException {
+    public synchronized void start() throws IOException {
          if (controlConnection != null) {
              LOG.info("Control connection not null. aborting");
              return;
@@ -392,7 +391,7 @@ public class OnionProxyManager {
             TorControlConnection controlConnection = new TorControlConnection(controlSocket);
             eventBroadcaster.broadcastNotice( "SUCCESS connected to Tor control port.");
 
-            if (enableLogs) {
+            if (getContext().getSettings().hasDebugLogs()) {
                 controlConnection.setDebugging(System.out);
             }
 
