@@ -66,8 +66,8 @@ public class AndroidOnionProxyManager extends OnionProxyManager {
     }
 
     @Override
-    public synchronized void start(boolean enableLogs) throws IOException {
-        super.start(enableLogs);
+    public synchronized void start() throws IOException {
+        super.start();
         // Register to receive network status events
         networkStateReceiver = new NetworkStateReceiver();
         IntentFilter filter = new IntentFilter(CONNECTIVITY_ACTION);
