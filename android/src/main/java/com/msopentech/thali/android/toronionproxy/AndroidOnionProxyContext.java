@@ -13,34 +13,27 @@ See the Apache 2 License for the specific language governing permissions and lim
 
 package com.msopentech.thali.android.toronionproxy;
 
-import com.msopentech.thali.toronionproxy.OnionProxyContext;
-import com.msopentech.thali.toronionproxy.TorInstaller;
-import com.msopentech.thali.toronionproxy.TorSettings;
-import com.msopentech.thali.toronionproxy.WriteObserver;
-
-import android.content.Context;
+import com.msopentech.thali.toronionproxy.*;
 
 import java.io.File;
 
-import static android.content.Context.MODE_PRIVATE;
-
 public class AndroidOnionProxyContext extends OnionProxyContext {
 
-    private final Context context;
-
-    public AndroidOnionProxyContext(Context context, String installDir, TorSettings settings) {
-        super(AndroidTorConfig.createConfig(context.getDir(installDir, MODE_PRIVATE)), settings);
-        this.context = context;
+    /**
+     * Constructs instance of AndroidOnionProxyContext. We provide an alternativeInstallDir here. If the Android
+     * installer successfully extracts the native libraries into a non-writable space, the alternativeInstallDir
+     * will be ignored. It is only used if the extraction is unsuccessful.
+     *
+     * configDir is a writable directory for tor config and data information.
+     *
+     */
+    public AndroidOnionProxyContext(TorConfig torConfig, TorInstaller torInstaller, TorSettings settings) {
+        super(torConfig, torInstaller, settings);
     }
 
     @Override
     public WriteObserver generateWriteObserver(File file) {
         return new AndroidWriteObserver(file);
-    }
-
-    @Override
-    public TorInstaller getInstaller() {
-        return new AndroidTorInstaller(context, getConfig().getConfigDir());
     }
 
     @Override

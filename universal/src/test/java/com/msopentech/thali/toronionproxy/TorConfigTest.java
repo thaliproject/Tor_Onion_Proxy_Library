@@ -25,43 +25,43 @@ public class TorConfigTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void nullConstruct() {
-        new TorConfig.Builder(null);
+        new TorConfig.Builder(null, null);
     }
 
     @Test
     public void defaultDataDir() {
-        TorConfig config = new TorConfig.Builder(sampleFile).build();
+        TorConfig config = new TorConfig.Builder(sampleFile, sampleFile).build();
         assertEquals(new File(sampleFile, "lib/tor").getPath(), config.getDataDir().getPath());
     }
 
     @Test
     public void defaultCookie() {
-        TorConfig config = new TorConfig.Builder(sampleFile).build();
+        TorConfig config = new TorConfig.Builder(sampleFile, sampleFile).build();
         assertEquals(new File(sampleFile, "lib/tor/control_auth_cookie").getPath(), config.getCookieAuthFile().getPath());
     }
 
     @Test
     public void defaultHostname() {
-        TorConfig config = new TorConfig.Builder(sampleFile).build();
+        TorConfig config = new TorConfig.Builder(sampleFile, sampleFile).build();
         assertEquals(new File(sampleFile, "lib/tor/hostname").getPath(), config.getHostnameFile().getPath());
     }
 
     @Test
     public void libraryPathRelativeToExecutable() {
-        TorConfig config = new TorConfig.Builder(sampleFile).torExecutable(new File(sampleFile, "exedir/tor.real")).build();
+        TorConfig config = new TorConfig.Builder(sampleFile, sampleFile).torExecutable(new File(sampleFile, "exedir/tor.real")).build();
         assertEquals(new File(sampleFile, "exedir").getPath(), config.getLibraryPath().getPath());
     }
 
     @Test
     public void defaultCookieWithDataDir() {
         File dataDir = new File("sample/datadir");
-        TorConfig config = new TorConfig.Builder(sampleFile).dataDir(dataDir).build();
+        TorConfig config = new TorConfig.Builder(sampleFile, sampleFile).dataDir(dataDir).build();
         assertEquals(new File(dataDir, "control_auth_cookie").getPath(), config.getCookieAuthFile().getPath());
     }
 
     @Test
     public void geoip() {
-        TorConfig config = new TorConfig.Builder(sampleFile).build();
+        TorConfig config = new TorConfig.Builder(sampleFile, sampleFile).build();
         assertEquals(new File(sampleFile, TorConfig.GEO_IP_NAME).getPath(), config.getGeoIpFile().getPath());
     }
 }

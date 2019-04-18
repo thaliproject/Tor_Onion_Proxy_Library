@@ -38,6 +38,8 @@ public final class TorConfig {
     private File libraryPath;
     private File resolveConf;
     private File controlPortFile;
+    private File installDir;
+    private int fileCreationTimeout;
 
     /**
      * Creates simplest default config. All tor files will be relative to the configDir root.
@@ -46,7 +48,7 @@ public final class TorConfig {
      * @return
      */
     public static TorConfig createDefault(File configDir) {
-        return new Builder(configDir).build();
+        return new Builder(configDir, configDir).build();
     }
 
     /**
@@ -56,15 +58,17 @@ public final class TorConfig {
      * @return
      */
     public static TorConfig createFlatConfig(File configDir) {
-        Builder builder = new Builder(configDir);
-        builder.dataDir(configDir);
+        return createConfig(configDir, configDir, configDir);
+    }
+
+    public static TorConfig createConfig(File installDir, File configDir, File dataDir) {
+        Builder builder = new Builder(installDir, configDir);
+        builder.dataDir(dataDir);
         return builder.build();
     }
 
-    public static TorConfig createConfig(File configDir, File dataDir) {
-        Builder builder = new Builder(configDir);
-        builder.dataDir(dataDir);
-        return builder.build();
+    public File getInstallDir() {
+        return installDir;
     }
 
     public File getHiddenServiceDir() {
@@ -105,7 +109,7 @@ public final class TorConfig {
         return geoIpv6File;
     }
 
-    public File getTorrcFile() throws IOException {
+    public File getTorrcFile() {
         return torrcFile;
     }
 
@@ -160,6 +164,17 @@ public final class TorConfig {
         return cookieAuthFile;
     }
 
+    /**
+     * When tor starts it waits for the control port and cookie auth files to be created before it proceeds to the
+     * next step in startup. If these files are not created after a certain amount of time, then the startup has
+     * failed.
+     *
+     * This method returns how much time to wait in seconds until failing the startup.
+     */
+    public int getFileCreationTimeout() {
+        return fileCreationTimeout;
+    }
+
     @Override
     public String toString() {
         return "TorConfig{" +
@@ -170,6 +185,7 @@ public final class TorConfig {
                 ", hiddenServiceDir=" + hiddenServiceDir +
                 ", dataDir=" + dataDir +
                 ", configDir=" + configDir +
+                ", installDir=" + installDir +
                 ", homeDir=" + homeDir +
                 ", hostnameFile=" + hostnameFile +
                 ", cookieAuthFile=" + cookieAuthFile +
@@ -195,11 +211,14 @@ public final class TorConfig {
         private File hostnameFile;
         private File resolveConf;
         private File controlPortFile;
+        private File installDir;
+        private int fileCreationTimeout;
 
         /**
-         * Constructs a builder with the specified configDir.
+         * Constructs a builder with the specified configDir and installDir. The install directory contains executable
+         * and libraries, while the configDir is for writeable files.
          * <p>
-         * For Linux, the LD_LIBRARY_PATH will be set to the home directory, Any libraries must be in the configDir.
+         * For Linux, the LD_LIBRARY_PATH will be set to the home directory, Any libraries must be in the installDir.
          * <p>
          * For all platforms the configDir will be the default parent location of all files unless they are explicitly set
          * to a different location in this builder.
@@ -207,11 +226,15 @@ public final class TorConfig {
          * @param configDir
          * @throws IllegalArgumentException if configDir is null
          */
-        public Builder(File configDir) {
+        public Builder(File installDir, File configDir) {
+            if (installDir == null) {
+                throw new IllegalArgumentException("installDir is null");
+            }
             if (configDir == null) {
                 throw new IllegalArgumentException("configDir is null");
             }
             this.configDir = configDir;
+            this.installDir = installDir;
         }
 
         /**
@@ -302,6 +325,11 @@ public final class TorConfig {
             return this;
         }
 
+        public Builder installDir(File file) {
+            this.installDir = file;
+            return this;
+        }
+
         public Builder libraryPath(File directory) {
             this.libraryPath = directory;
             return this;
@@ -323,16 +351,32 @@ public final class TorConfig {
         }
 
         /**
+         * When tor starts it waits for the control port and cookie auth files to be created before it proceeds to the
+         * next step in startup. If these files are not created after a certain amount of time, then the startup has
+         * failed.
+         *
+         * This method specifies how much time to wait until failing the startup.
+         *
+         * @param timeout in seconds
+         */
+        public Builder fileCreationTimeout(int timeout) {
+            this.fileCreationTimeout = timeout;
+            return this;
+        }
+
+        /**
          * Builds torConfig and sets default values if not explicitly configured through builder.
          *
          * @return torConfig
          */
         public TorConfig build() {
-            String userHome = System.getProperty("user.home");
-            homeDir = (userHome != null && !"".equals(userHome)) ? new File(userHome) : configDir;
+            if(homeDir == null) {
+                String userHome = System.getProperty("user.home");
+                homeDir = (userHome != null && !"".equals(userHome)) ? new File(userHome) : configDir;
+            }
 
             if (torExecutableFile == null) {
-                torExecutableFile = new File(configDir, getTorExecutableFileName());
+                torExecutableFile = new File(installDir, getTorExecutableFileName());
             }
 
             if (geoIpFile == null) {
@@ -375,6 +419,10 @@ public final class TorConfig {
                 controlPortFile = new File(dataDir, "control.txt");
             }
 
+            if(fileCreationTimeout <= 0) {
+                fileCreationTimeout = 15;
+            }
+
             TorConfig config = new TorConfig();
             config.hiddenServiceDir = hiddenServiceDir;
             config.torExecutableFile = torExecutableFile;
@@ -389,12 +437,15 @@ public final class TorConfig {
             config.libraryPath = libraryPath;
             config.resolveConf = resolveConf;
             config.controlPortFile = controlPortFile;
+            config.installDir = installDir;
+            config.fileCreationTimeout = fileCreationTimeout;
             return config;
         }
 
         private static String getTorExecutableFileName() {
             switch (OsData.getOsType()) {
                 case ANDROID:
+                    return "tor.so";
                 case LINUX_32:
                 case LINUX_64:
                 case MAC:

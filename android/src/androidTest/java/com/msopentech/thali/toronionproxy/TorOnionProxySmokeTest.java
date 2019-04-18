@@ -69,6 +69,7 @@ package com.msopentech.thali.toronionproxy;
 
 import com.msopentech.thali.android.toronionproxy.AndroidOnionProxyManager;
 
+import com.msopentech.thali.android.toronionproxy.AndroidTorConfig;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.slf4j.Logger;
@@ -96,13 +97,14 @@ public class TorOnionProxySmokeTest  {
     private static final Logger LOG = LoggerFactory.getLogger(TorOnionProxySmokeTest.class);
 
     public OnionProxyManager getOnionProxyManager(String workingSubDirectoryName) {
-        return new AndroidOnionProxyManager(getContext(), workingSubDirectoryName, null, null, null);
+        File installDir = new File(workingSubDirectoryName);
+        TorConfig torConfig = AndroidTorConfig.createConfig(installDir, installDir, getContext());
+        return new AndroidOnionProxyManager(getContext(), torConfig, new TestTorInstaller(getContext(), installDir),
+                null, null, null);
     }
     /**
      * Start two TorOPs, one for a hidden service and one for a client. Have the hidden service op stop and start
      * and see if the client can get connected again.
-     * @throws IOException
-     * @throws InterruptedException
      */
     @Test
     public void testHiddenServiceRecycleTime() throws IOException, InterruptedException {

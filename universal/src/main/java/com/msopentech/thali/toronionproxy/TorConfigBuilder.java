@@ -12,12 +12,7 @@ See the Apache 2 License for the specific language governing permissions and lim
 */
 package com.msopentech.thali.toronionproxy;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
@@ -69,44 +64,6 @@ public final class TorConfigBuilder {
         }
     }
 
-    /**
-     * Add bridges from bridges.txt file.
-     */
-    public TorConfigBuilder addBridges(InputStream input, String bridgeType, int maxBridges) {
-        if (input == null || isNullOrEmpty(bridgeType) || maxBridges < 1) {
-            return this;
-        }
-        List<Bridge> bridges = new ArrayList<>();
-        try {
-            BufferedReader br = new BufferedReader(new InputStreamReader(input, "UTF-8"));
-            for (String line = br.readLine(); line != null; line = br.readLine()) {
-                String[] tokens = line.split(" ", 1);
-                if (tokens.length != 2) {
-                    continue;//bad entry
-                }
-                bridges.add(new Bridge(tokens[0], tokens[1]));
-            }
-            br.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        Collections.shuffle(bridges, new Random(System.nanoTime()));
-        int bridgeCount = 0;
-        for (Bridge b : bridges) {
-            if (b.type.equals(bridgeType)) {
-                bridge(b.type, b.config);
-                if (++bridgeCount > maxBridges)
-                    break;
-            }
-        }
-        return this;
-    }
-
-    public TorConfigBuilder addBridgesFromSettings(String type, int maxBridges) {
-        return addBridges(settings.getBridges(), type, maxBridges);
-    }
-
     public String asString() {
         return buffer.toString();
     }
@@ -129,36 +86,38 @@ public final class TorConfigBuilder {
     }
 
     public TorConfigBuilder configurePluggableTransportsFromSettings(File pluggableTransportClient) throws IOException {
-        if (pluggableTransportClient == null || !settings.hasBridges()) {
+        List<String> supportedBridges = settings.getListOfSupportedBridges();
+        if (pluggableTransportClient == null || !settings.hasBridges() || supportedBridges.size() < 1) {
             return this;
         }
-        if (pluggableTransportClient.exists() && pluggableTransportClient.canExecute()) {
-            useBridges();
 
-            String bridges = settings.getListOfSupportedBridges();
-            if (bridges.contains("obfs3") || bridges.contains("obfs4")) {
-                transportPluginObfs(pluggableTransportClient.getCanonicalPath());
-            }
-            if (bridges.contains("meek")) {
-                transportPluginMeek(pluggableTransportClient.getCanonicalPath());
-            }
-
-            if (bridges.length() > 5) {
-                for (String bridge : bridges.split("\\r?\\n")) {
-                    line("Bridge " + bridge);
-                }
-            } else {
-                String type = bridges.contains("meek") ? "meek_lite" : "obfs4";
-                addBridgesFromSettings(type, 2);
-            }
-        } else {
+        if (!pluggableTransportClient.exists() || !pluggableTransportClient.canExecute()) {
             throw new IOException("Bridge binary does not exist: " + pluggableTransportClient
                     .getCanonicalPath());
         }
 
+        if (supportedBridges.contains("obfs3") || supportedBridges.contains("obfs4")) {
+            transportPluginObfs(pluggableTransportClient.getCanonicalPath());
+        }
+        if (supportedBridges.contains("meek")) {
+            transportPluginMeek(pluggableTransportClient.getCanonicalPath());
+        }
+        String type = supportedBridges.contains("meek") ? "meek_lite" : "obfs4";
+        addBridgesFromResources(type, 2);
         return this;
     }
 
+    public TorConfigBuilder cookieAuthentication() {
+        buffer.append("CookieAuthentication 1 ").append('\n');
+        buffer.append("CookieAuthFile ").append(context.getConfig().getCookieAuthFile().getAbsolutePath()).append("\n");
+        return this;
+    }
+
+    @SettingsConfig
+    public TorConfigBuilder cookieAuthenticationFromSettings() {
+        return settings.hasCookieAuthentication() ? cookieAuthentication() : this;
+    }
+    
     public TorConfigBuilder connectionPadding() {
         buffer.append("ConnectionPadding 1").append('\n');
         return this;
@@ -171,6 +130,7 @@ public final class TorConfigBuilder {
 
     public TorConfigBuilder controlPortWriteToFile(String controlPortFile) {
         buffer.append("ControlPortWriteToFile ").append(controlPortFile).append('\n');
+        buffer.append("ControlPort auto\n");
         return this;
     }
 
@@ -192,7 +152,7 @@ public final class TorConfigBuilder {
     }
 
     public TorConfigBuilder disableNetwork() {
-        buffer.append("DisableNetwork 0").append('\n');
+        buffer.append("DisableNetwork 1").append('\n');
         return this;
     }
 
@@ -386,6 +346,16 @@ public final class TorConfigBuilder {
         buffer = new StringBuffer();
     }
 
+    @SettingsConfig
+    public TorConfigBuilder runAsDaemonFromSettings() {
+        return settings.runAsDaemon() ? runAsDaemon() : this;
+    }
+
+    public TorConfigBuilder runAsDaemon() {
+        buffer.append("RunAsDaemon 1").append('\n');
+        return this;
+    }
+
     public TorConfigBuilder safeSocksDisable() {
         buffer.append("SafeSocks 0").append('\n');
         return this;
@@ -513,6 +483,57 @@ public final class TorConfigBuilder {
     @SettingsConfig
     public TorConfigBuilder virtualAddressNetworkFromSettings() {
         return virtualAddressNetwork(settings.getVirtualAddressNetwork());
+    }
+
+    /**
+     * Adds bridges from a resource stream. This relies on the TorInstaller to know how to obtain this stream.
+     */
+    TorConfigBuilder addBridgesFromResources(String type, int maxBridges) throws IOException {
+        if(settings.hasBridges()) {
+            InputStream bridgesStream = context.getInstaller().openBridgesStream();
+            addBridges(bridgesStream, type, maxBridges);
+        }
+        return this;
+    }
+
+    /**
+     * Add bridges from bridges.txt file.
+     */
+    private void addBridges(InputStream input, String bridgeType, int maxBridges) {
+        if (input == null || isNullOrEmpty(bridgeType) || maxBridges < 1) {
+            return;
+        }
+        boolean hasAddedBridge = false;
+        List<Bridge> bridges = readBridgesFromStream(input);
+        Collections.shuffle(bridges, new Random(System.nanoTime()));
+        int bridgeCount = 0;
+        for (Bridge b : bridges) {
+            if (b.type.equals(bridgeType)) {
+                bridge(b.type, b.config);
+                hasAddedBridge = true;
+                if (++bridgeCount > maxBridges)
+                    break;
+            }
+        }
+        if(hasAddedBridge) useBridges();
+    }
+
+    private static List<Bridge> readBridgesFromStream(InputStream input)  {
+        List<Bridge> bridges = new ArrayList<>();
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(input, "UTF-8"));
+            for (String line = br.readLine(); line != null; line = br.readLine()) {
+                String[] tokens = line.split("\\s+", 2);
+                if (tokens.length != 2) {
+                    continue;//bad entry
+                }
+                bridges.add(new Bridge(tokens[0], tokens[1]));
+            }
+            br.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return bridges;
     }
 
     private static class Bridge {

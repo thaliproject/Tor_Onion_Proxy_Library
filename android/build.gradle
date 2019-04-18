@@ -10,7 +10,7 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.2.1'
+        classpath "com.android.tools.build:gradle:${androidplugin}"
     }
 }
 
@@ -22,7 +22,7 @@ android {
         targetSdkVersion 26
         versionCode 1
         versionName "0.0.3"
-
+        consumerProguardFiles 'proguard-rules.pro'
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
 
     }
@@ -66,14 +66,14 @@ task sourceJar(type: Jar) {
 }
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation project(':universal')
     implementation 'net.freehaven.tor.control:jtorctl:0.2'
     implementation 'org.slf4j:slf4j-api:1.7.25'
     implementation 'org.slf4j:slf4j-android:1.7.25'
-    implementation 'org.torproject:tor-android-binary:0.3.5.6-rc'
     implementation 'com.android.support:appcompat-v7:26.1.0'
     testImplementation 'junit:junit:4.12'
+    androidTestImplementation project(':android_tor_installer')
+    androidTestImplementation 'org.torproject:tor-android-binary:0.3.5.8-rc-v2'
     androidTestImplementation 'com.android.support.test:runner:1.0.1'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
 }
@@ -84,5 +84,28 @@ repositories {
     google()
     jcenter()
     maven { url "https://raw.githubusercontent.com/guardianproject/gpmaven/master" }
+}
 
+/**
+ * Rename the native libraries to have 'so' extension so that the build will automatically package it in aar
+ */
+task copyPluggableTransports(type: Copy) {
+    from "../external/pluto/bin"
+    into "src/main/jniLibs"
+    rename { filename ->
+        filename.replace 'obfs4proxy', 'libObfs4proxy.so'
+    }
+}
+
+gradle.projectsEvaluated {
+    preBuild.dependsOn(copyPluggableTransports)
+}
+
+task sourcesJar(type: Jar) {
+    from android.sourceSets.main.java.srcDirs
+    classifier = 'sources'
+}
+
+artifacts {
+    archives sourcesJar
 }
