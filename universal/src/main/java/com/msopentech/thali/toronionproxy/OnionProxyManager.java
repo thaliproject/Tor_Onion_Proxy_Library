@@ -31,7 +31,6 @@ package com.msopentech.thali.toronionproxy;
 
 import net.freehaven.tor.control.ConfigEntry;
 import net.freehaven.tor.control.EventHandler;
-import net.freehaven.tor.control.TorControlConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -413,7 +412,8 @@ public class OnionProxyManager {
 
             eventBroadcaster.broadcastNotice("SUCCESS - authenticated to control port.");
 
-            controlConnection.resetConf(Collections.singletonList(OWNER));
+            controlConnection.takeownership();
+            controlConnection.resetOwningControllerProcess();
 
             eventBroadcaster.broadcastNotice("adding control port event handler");
             controlConnection.setEventHandler(eventHandler);
