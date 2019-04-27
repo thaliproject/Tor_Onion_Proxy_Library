@@ -18,10 +18,14 @@ public final class TorControlConnection extends net.freehaven.tor.control.TorCon
     }
     
     public void takeownership() throws IOException {
-        sendAndWaitForResponse("TAKEOWNERSHIP\r\n", (String)null);
+        sendAndWaitForResponse("TAKEOWNERSHIP\r\n", null);
     }
 
     public void resetOwningControllerProcess() throws IOException {
         resetConf(Collections.singleton("__OwningControllerProcess"));
+    }
+
+    public void reloadConf() throws IOException {
+        signal("HUP");
     }
 }

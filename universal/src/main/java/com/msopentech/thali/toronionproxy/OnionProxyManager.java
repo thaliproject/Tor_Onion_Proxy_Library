@@ -344,91 +344,158 @@ public class OnionProxyManager {
      * @throws IOException
      */
     public synchronized void start() throws IOException {
-         if (controlConnection != null) {
-             LOG.info("Control connection not null. aborting");
-             return;
+        if (controlConnection != null) {
+            LOG.info("Control connection not null. aborting");
+            return;
         }
 
         LOG.info("Starting Tor");
-        File controlPortFile = this.getContext().getConfig().getControlPortFile();
-        controlPortFile.delete();
-        if(!controlPortFile.getParentFile().exists()) controlPortFile.getParentFile().mkdirs();
+        Process torProcess = null;
+        TorControlConnection controlConnection = findExistingTorConnection();
+        boolean hasExistingTorConnection = controlConnection != null;
+        if(!hasExistingTorConnection) {
+            File controlPortFile = getContext().getConfig().getControlPortFile();
+            controlPortFile.delete();
+            if (!controlPortFile.getParentFile().exists()) controlPortFile.getParentFile().mkdirs();
 
-        File cookieAuthFile = this.getContext().getConfig().getCookieAuthFile();
-        cookieAuthFile.delete();
-        if(!cookieAuthFile.getParentFile().exists()) cookieAuthFile.getParentFile().mkdirs();
+            File cookieAuthFile = getContext().getConfig().getCookieAuthFile();
+            cookieAuthFile.delete();
+            if (!cookieAuthFile.getParentFile().exists()) cookieAuthFile.getParentFile().mkdirs();
 
-        String pid = onionProxyContext.getProcessId();
-        String[] cmd = {torExecutable().getAbsolutePath(), "-f", torrc().getAbsolutePath(), OWNER, pid};
-        ProcessBuilder processBuilder = new ProcessBuilder(cmd);
-        setEnvironmentArgsAndWorkingDirectoryForStart(processBuilder);
+            torProcess = spawnTorProcess();
+            try {
+                waitForControlPortFileCreation(controlPortFile);
+                controlConnection = connectToTorControlSocket(controlPortFile);
+            } catch (IOException e) {
+                if(torProcess != null) torProcess.destroy();
+                throw new IOException(e.getMessage());            }
+        } else {
+            LOG.info("Using existing Tor Process");
+        }
+
         try {
-            LOG.info("Starting process");
+            this.controlConnection = controlConnection;
 
-            Process torProcess = processBuilder.start();
-            eatStream(torProcess.getErrorStream());
+            File cookieAuthFile = getContext().getConfig().getCookieAuthFile();
+            waitForCookieAuthFileCreation(cookieAuthFile);
+            controlConnection.authenticate(FileUtilities.read(cookieAuthFile));
+            eventBroadcaster.broadcastNotice("SUCCESS - authenticated tor control port.");
 
-            long controlPortStartTime = System.currentTimeMillis();
-            LOG.info("Waiting for control port");
-            boolean isCreated = controlPortFile.exists() || controlPortFile.createNewFile();
-            WriteObserver controlPortFileObserver = onionProxyContext.createControlPortFileObserver();
-            if (!isCreated || (controlPortFile.length() == 0 && !controlPortFileObserver.poll(config.getFileCreationTimeout(), SECONDS))) {
-                LOG.warn("Control port file not created");
-                FileUtilities.listFilesToLog(config.getDataDir());
-                eventBroadcaster.broadcastNotice("Tor control port file not created");
-                eventBroadcaster.getStatus().stopping();
-                torProcess.destroy();
-                throw new IOException("Control port file not created: " + controlPortFile.getAbsolutePath()
-                        + ", len = " + controlPortFile.length());
+            if(hasExistingTorConnection) {
+                controlConnection.reloadConf();
+                eventBroadcaster.broadcastNotice("Reloaded configuration file");
             }
-            LOG.info("Created control port file: time = " + (System.currentTimeMillis() - controlPortStartTime) + "ms");
-            String[] controlPortTokens = new String(FileUtilities.read(controlPortFile)).trim().split(":");
-            control_port = Integer.parseInt(controlPortTokens[1]);
-            eventBroadcaster.broadcastNotice( "Connecting to control port: " + control_port);
-            controlSocket = new Socket(controlPortTokens[0].split("=")[1], control_port);
-
-            TorControlConnection controlConnection = new TorControlConnection(controlSocket);
-            eventBroadcaster.broadcastNotice( "SUCCESS connected to Tor control port.");
-
-            if (getContext().getSettings().hasDebugLogs()) {
-                controlConnection.setDebugging(System.out);
-            }
-
-            long cookieAuthStartTime = System.currentTimeMillis();
-            LOG.info("Waiting for cookie auth file");
-            isCreated = cookieAuthFile.exists() || cookieAuthFile.createNewFile();
-            WriteObserver cookieAuthFileObserver = onionProxyContext.createCookieAuthFileObserver();
-            if (!isCreated || (cookieAuthFile.length() == 0 && !cookieAuthFileObserver.poll(config.getFileCreationTimeout(), SECONDS))) {
-                LOG.warn("Cookie Auth file not created");
-                eventBroadcaster.broadcastNotice("Cookie Auth file not created");
-                eventBroadcaster.getStatus().stopping();
-                torProcess.destroy();
-                throw new IOException("Cookie Auth file not created: " + cookieAuthFile.getAbsolutePath()
-                        + ", len = " + cookieAuthFile.length());
-            }
-            LOG.info("Created cookie auth file: time = " + (System.currentTimeMillis() - cookieAuthStartTime) + "ms");
-
-            controlConnection.authenticate(FileUtilities.read(config.getCookieAuthFile()));
-
-            eventBroadcaster.broadcastNotice("SUCCESS - authenticated to control port.");
 
             controlConnection.takeownership();
             controlConnection.resetOwningControllerProcess();
+            eventBroadcaster.broadcastNotice("Took ownership of tor control port.");
 
             eventBroadcaster.broadcastNotice("adding control port event handler");
             controlConnection.setEventHandler(eventHandler);
             controlConnection.setEvents(Arrays.asList(EVENTS));
             eventBroadcaster.broadcastNotice("SUCCESS added control port event handler");
 
-            // We only set the class property once the connection is in a known good state
-            this.controlConnection = controlConnection;
             enableNetwork(true);
+        } catch (IOException e) {
+            if(torProcess != null) torProcess.destroy();
+            this.controlConnection = null;
+            throw new IOException(e.getMessage());
+        }
 
-            LOG.info("Completed starting of tor");
+        LOG.info("Completed starting of tor");
+    }
+
+    /**
+     * Finds existing tor control connection by trying to connect. Returns null if
+     */
+    private TorControlConnection findExistingTorConnection() throws IOException  {
+        File controlPortFile = getContext().getConfig().getControlPortFile();
+        if(controlPortFile.exists()) {
+            return connectToTorControlSocket(controlPortFile);
+        }
+        return null;
+    }
+
+    /**
+     * Looks in the specified <code>controlPortFile</code> for the port and attempts to open a control connection.
+     */
+    private TorControlConnection connectToTorControlSocket(File controlPortFile) throws IOException {
+        TorControlConnection controlConnection;
+        try {
+            String[] controlPortTokens = new String(FileUtilities.read(controlPortFile)).trim().split(":");
+            control_port = Integer.parseInt(controlPortTokens[1]);
+            eventBroadcaster.broadcastNotice("Connecting to control port: " + control_port);
+            controlSocket = new Socket(controlPortTokens[0].split("=")[1], control_port);
+            controlConnection = new TorControlConnection(controlSocket);
+            eventBroadcaster.broadcastNotice("SUCCESS connected to Tor control port.");
+        } catch (IOException e) {
+            throw new IOException(e.getMessage());
+        }
+
+        if (getContext().getSettings().hasDebugLogs()) {
+            controlConnection.setDebugging(System.out);
+        }
+        return controlConnection;
+    }
+
+    /**
+     * Spawns the tor native process from the existing Java process.
+     */
+    private Process spawnTorProcess() throws IOException {
+        String pid = onionProxyContext.getProcessId();
+        String[] cmd = {torExecutable().getAbsolutePath(), "-f", torrc().getAbsolutePath(), OWNER, pid};
+        ProcessBuilder processBuilder = new ProcessBuilder(cmd);
+        setEnvironmentArgsAndWorkingDirectoryForStart(processBuilder);
+
+        LOG.info("Starting process");
+        Process torProcess;
+        try {
+            torProcess = processBuilder.start();
         } catch (SecurityException e) {
             LOG.warn(e.toString(), e);
             throw new IOException(e);
         }
+        eatStream(torProcess.getErrorStream());
+        return torProcess;
+    }
+
+    /**
+     * Waits for the control port file to be created by the Tor process. If there is any problem creating the file OR
+     * if the timeout for the control port file to be created is exceeded, then an IOException is thrown.
+     */
+    private void waitForControlPortFileCreation(File controlPortFile) throws IOException {
+        long controlPortStartTime = System.currentTimeMillis();
+        LOG.info("Waiting for control port");
+        boolean isCreated = controlPortFile.exists() || controlPortFile.createNewFile();
+        WriteObserver controlPortFileObserver = onionProxyContext.createControlPortFileObserver();
+        if (!isCreated || (controlPortFile.length() == 0 && !controlPortFileObserver.poll(config.getFileCreationTimeout(), SECONDS))) {
+            LOG.warn("Control port file not created");
+            FileUtilities.listFilesToLog(config.getDataDir());
+            eventBroadcaster.broadcastNotice("Tor control port file not created");
+            eventBroadcaster.getStatus().stopping();
+            throw new IOException("Control port file not created: " + controlPortFile.getAbsolutePath()
+                    + ", len = " + controlPortFile.length());
+        }
+        LOG.info("Created control port file: time = " + (System.currentTimeMillis() - controlPortStartTime) + "ms");
+    }
+
+    /**
+     * Waits for the cookie auth file to be created by the Tor process. If there is any problem creating the file OR
+     * if the timeout for the cookie auth file to be created is exceeded, then  an IOException is thrown.
+     */
+    private void waitForCookieAuthFileCreation(File cookieAuthFile) throws IOException {
+        long cookieAuthStartTime = System.currentTimeMillis();
+        LOG.info("Waiting for cookie auth file");
+        boolean isCreated = cookieAuthFile.exists() || cookieAuthFile.createNewFile();
+        WriteObserver cookieAuthFileObserver = onionProxyContext.createCookieAuthFileObserver();
+        if (!isCreated || (cookieAuthFile.length() == 0 && !cookieAuthFileObserver.poll(config.getFileCreationTimeout(), SECONDS))) {
+            LOG.warn("Cookie Auth file not created");
+            eventBroadcaster.broadcastNotice("Cookie Auth file not created");
+            eventBroadcaster.getStatus().stopping();
+            throw new IOException("Cookie Auth file not created: " + cookieAuthFile.getAbsolutePath()
+                    + ", len = " + cookieAuthFile.length());
+        }
+        LOG.info("Created cookie auth file: time = " + (System.currentTimeMillis() - cookieAuthStartTime) + "ms");
     }
 
     private void eatStream(final InputStream inputStream) {
