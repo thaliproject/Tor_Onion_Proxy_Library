@@ -7,7 +7,6 @@ buildscript {
         mavenLocal()
         mavenCentral()
         google()
-        jcenter()
     }
     dependencies {
         classpath "com.android.tools.build:gradle:${androidplugin}"
@@ -82,7 +81,6 @@ repositories {
     mavenLocal()
     mavenCentral()
     google()
-    jcenter()
     maven { url "https://raw.githubusercontent.com/guardianproject/gpmaven/master" }
 }
 
