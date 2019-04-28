@@ -408,10 +408,14 @@ public class OnionProxyManager {
     /**
      * Finds existing tor control connection by trying to connect. Returns null if
      */
-    private TorControlConnection findExistingTorConnection() throws IOException  {
+    private TorControlConnection findExistingTorConnection()  {
         File controlPortFile = getContext().getConfig().getControlPortFile();
         if(controlPortFile.exists()) {
-            return connectToTorControlSocket(controlPortFile);
+            try {
+                return connectToTorControlSocket(controlPortFile);
+            } catch (IOException e) {
+                return null;
+            }
         }
         return null;
     }
@@ -430,6 +434,8 @@ public class OnionProxyManager {
             eventBroadcaster.broadcastNotice("SUCCESS connected to Tor control port.");
         } catch (IOException e) {
             throw new IOException(e.getMessage());
+        } catch(ArrayIndexOutOfBoundsException e) {
+            throw new IOException("Failed to read control port: " + new String(FileUtilities.read(controlPortFile)));
         }
 
         if (getContext().getSettings().hasDebugLogs()) {
