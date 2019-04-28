@@ -85,6 +85,13 @@ public final class TorConfigBuilder {
         return this;
     }
 
+    public TorConfigBuilder bridgeCustom(String config) {
+        if (!isNullOrEmpty(config)) {
+            buffer.append("Bridge ").append(config).append('\n');
+        }
+        return this;
+    }
+
     public TorConfigBuilder configurePluggableTransportsFromSettings(File pluggableTransportClient) throws IOException {
         List<String> supportedBridges = settings.getListOfSupportedBridges();
         if (pluggableTransportClient == null || !settings.hasBridges() || supportedBridges.size() < 1) {
@@ -487,11 +494,28 @@ public final class TorConfigBuilder {
 
     /**
      * Adds bridges from a resource stream. This relies on the TorInstaller to know how to obtain this stream.
+     * These entries may be type-specified like:
+     *
+     * <code>
+     *  obfs3 169.229.59.74:31493 AF9F66B7B04F8FF6F32D455F05135250A16543C9
+     * </code>
+     *
+     * Or it may just be a custom entry like
+     *
+     * <code>
+     *    69.163.45.129:443 9F090DE98CA6F67DEEB1F87EFE7C1BFD884E6E2F
+     * </code>
+     *
      */
     TorConfigBuilder addBridgesFromResources(String type, int maxBridges) throws IOException {
         if(settings.hasBridges()) {
             InputStream bridgesStream = context.getInstaller().openBridgesStream();
-            addBridges(bridgesStream, type, maxBridges);
+            int formatType = bridgesStream.read();
+            if(formatType == 0) {
+                addBridges(bridgesStream, type, maxBridges);
+            } else {
+                addCustomBridges(bridgesStream);
+            }
         }
         return this;
     }
@@ -518,6 +542,24 @@ public final class TorConfigBuilder {
         if(hasAddedBridge) useBridges();
     }
 
+    /**
+     * Add custom bridges defined by the user. These will have a bridgeType of 'custom' as the first field.
+     */
+    private void addCustomBridges(InputStream input) {
+        if (input == null) {
+            return;
+        }
+        boolean hasAddedBridge = false;
+        List<Bridge> bridges = readCustomBridgesFromStream(input);
+        for (Bridge b : bridges) {
+            if (b.type.equals("custom")) {
+                bridgeCustom(b.config);
+                hasAddedBridge = true;
+            }
+        }
+        if(hasAddedBridge) useBridges();
+    }
+
     private static List<Bridge> readBridgesFromStream(InputStream input)  {
         List<Bridge> bridges = new ArrayList<>();
         try {
@@ -528,6 +570,23 @@ public final class TorConfigBuilder {
                     continue;//bad entry
                 }
                 bridges.add(new Bridge(tokens[0], tokens[1]));
+            }
+            br.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return bridges;
+    }
+
+    private static List<Bridge> readCustomBridgesFromStream(InputStream input)  {
+        List<Bridge> bridges = new ArrayList<>();
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(input, "UTF-8"));
+            for (String line = br.readLine(); line != null; line = br.readLine()) {
+                if(line.isEmpty()) {
+                    continue;
+                }
+                bridges.add(new Bridge("custom", line));
             }
             br.close();
         } catch (Exception e) {
