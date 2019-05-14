@@ -29,5 +29,20 @@ public abstract class TorInstaller {
         return getClass().getResourceAsStream("/" + fileName);
     }
 
+    /**
+     * If first byte of stream is 0, then the following stream will have the form
+     *
+     * <code>
+     *     ($bridge_type $bridge_info \r\n)*
+     * </code>
+     *
+     * if first byte is 1, the the stream will have the form
+     * <code>
+     *     ($bridge_info \r\n)*
+     * </code>
+     *
+     * The second form is used for custom bridges from the user.
+     *
+     */
     public abstract InputStream openBridgesStream() throws IOException;
 }
