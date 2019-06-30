@@ -375,7 +375,7 @@ public final class TorConfigBuilder {
 
     @SettingsConfig
     public TorConfigBuilder safeSocksFromSettings() {
-        return !settings.hasSafeSocks() ? safeSocksDisable() : this;
+        return !settings.hasSafeSocks() ? safeSocksDisable() : safeSocksEnable();
     }
 
     public TorConfigBuilder setGeoIpFiles() throws IOException {
