@@ -68,11 +68,12 @@ public class OsData {
     protected static OsType getLinuxType() {
         String [] cmd = { "uname", "-m" };
         Process unameProcess = null;
+        Scanner scanner = null;
         try {
             String unameOutput;
             unameProcess = Runtime.getRuntime().exec(cmd);
 
-            Scanner scanner = new Scanner(unameProcess.getInputStream());
+            scanner = new Scanner(unameProcess.getInputStream());
             if (scanner.hasNextLine()) {
                 unameOutput = scanner.nextLine();
             } else {
@@ -97,6 +98,7 @@ public class OsData {
             throw new RuntimeException("Uname failure", e);
         } finally {
             if (unameProcess != null) {
+                scanner.close();
                 unameProcess.destroy();
             }
         }
