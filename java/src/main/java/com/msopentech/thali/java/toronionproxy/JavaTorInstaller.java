@@ -39,7 +39,7 @@ import static com.msopentech.thali.toronionproxy.FileUtilities.setPerms;
 
  </pre>
  */
-public final class JavaTorInstaller extends TorInstaller {
+public class JavaTorInstaller extends TorInstaller {
 
     private static final Logger LOG = LoggerFactory.getLogger(JavaTorInstaller.class);
 
