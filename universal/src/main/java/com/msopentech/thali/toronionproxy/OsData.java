@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.util.Scanner;
 
 public class OsData {
-    public enum OsType {WINDOWS, LINUX_32, LINUX_64, MAC, ANDROID}
+    public enum OsType {WINDOWS, LINUX_32, LINUX_64, MAC, ANDROID, UNSUPPORTED}
     private static OsType detectedType = null;
 
     public static OsType getOsType() {
@@ -62,7 +62,7 @@ public class OsData {
         } else if (osName.contains("Linux")) {
             return getLinuxType();
         }
-        throw new RuntimeException("Unsupported OS");
+        return OsType.UNSUPPORTED;
     }
 
     protected static OsType getLinuxType() {
@@ -91,7 +91,7 @@ public class OsData {
             if (unameOutput.compareTo("x86_64") == 0) {
                 return OsType.LINUX_64;
             }
-            throw new RuntimeException("Could not understand uname output, not sure what bitness");
+            return OsType.UNSUPPORTED;
         } catch (IOException e) {
             throw new RuntimeException("Uname failure", e);
         } catch (InterruptedException e) {
