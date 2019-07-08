@@ -461,7 +461,10 @@ public class OnionProxyManager {
             LOG.warn(e.toString(), e);
             throw new IOException(e);
         }
-        eatStream(torProcess.getErrorStream());
+        eatStream(torProcess.getErrorStream(), true);
+        if (getContext().getSettings().hasDebugLogs()) {
+            eatStream(torProcess.getInputStream(), false);
+        }
         return torProcess;
     }
 
@@ -504,16 +507,20 @@ public class OnionProxyManager {
         LOG.info("Created cookie auth file: time = " + (System.currentTimeMillis() - cookieAuthStartTime) + "ms");
     }
 
-    private void eatStream(final InputStream inputStream) {
+    private void eatStream(final InputStream inputStream, boolean isError) {
         new Thread() {
             @Override
             public void run() {
                 Scanner scanner = new Scanner(inputStream);
                 try {
                     while (scanner.hasNextLine()) {
-                        String error = scanner.nextLine();
-                        LOG.error(error);
-                        eventBroadcaster.broadcastException(error, new Exception());
+                        String line = scanner.nextLine();
+                        if(isError) {
+                            LOG.error(line);
+                            eventBroadcaster.broadcastException(line, new Exception());
+                        } else {
+                            LOG.info(line);
+                        }
                     }
                 } finally {
                     try {
