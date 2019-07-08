@@ -395,6 +395,10 @@ public final class TorConfigBuilder {
         if (!isNullOrEmpty(isolationFlag)) {
             buffer.append(" ").append(isolationFlag);
         }
+        buffer.append(" KeepAliveIsolateSOCKSAuth");
+        buffer.append(" IPv6Traffic");
+        buffer.append(" PreferIPv6");
+
         buffer.append('\n');
         return this;
     }
