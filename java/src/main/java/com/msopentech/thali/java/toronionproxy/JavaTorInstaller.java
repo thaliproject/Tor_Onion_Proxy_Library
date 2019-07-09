@@ -39,7 +39,7 @@ import static com.msopentech.thali.toronionproxy.FileUtilities.setPerms;
 
  </pre>
  */
-public final class JavaTorInstaller extends TorInstaller {
+public class JavaTorInstaller extends TorInstaller {
 
     private static final Logger LOG = LoggerFactory.getLogger(JavaTorInstaller.class);
 
@@ -77,12 +77,14 @@ public final class JavaTorInstaller extends TorInstaller {
         LOG.info("Installing resources: geoip=" + config.getGeoIpFile().getAbsolutePath());
         cleanInstallOneFile(getAssetOrResourceByName(TorConfig.GEO_IP_NAME), config.getGeoIpFile());
         cleanInstallOneFile(getAssetOrResourceByName(TorConfig.GEO_IPV_6_NAME), config.getGeoIpv6File());
+        setupTorExecutable();
+    }
 
+    protected void setupTorExecutable() throws IOException {
         LOG.info("Installing tor executable: " + config.getTorExecutableFile().getAbsolutePath());
         File torParent = config.getTorExecutableFile().getParentFile();
         extractContentFromZip(torParent.exists() ? torParent : config.getTorExecutableFile(),
                 getAssetOrResourceByName(getPathToTorExecutable() + "tor.zip"));
-
         setPerms(config.getTorExecutableFile());
     }
 
