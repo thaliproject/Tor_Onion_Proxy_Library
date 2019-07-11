@@ -54,13 +54,20 @@ public final class TorConfigBuilder {
     }
 
     private static boolean isLocalPortOpen(int port) {
+        Socket socket = null;
         try {
-            Socket socket = new Socket();
+            socket = new Socket();
             socket.connect(new InetSocketAddress("127.0.0.1", port), 500);
-            socket.close();
             return true;
         } catch (Exception e) {
             return false;
+        } finally {
+            if (socket  != null) {
+                try {
+                    socket.close();
+                } catch (Exception ee) {
+                }
+            }
         }
     }
 
