@@ -54,6 +54,8 @@ public interface TorSettings {
 
     boolean hasDebugLogs();
 
+    boolean hasDormantCanceledByStartup();
+
     boolean hasIsolationAddressFlagForTunnel();
 
     boolean hasOpenProxyOnAllInterfaces();

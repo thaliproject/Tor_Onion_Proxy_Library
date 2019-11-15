@@ -190,6 +190,19 @@ public final class TorConfigBuilder {
         return this;
     }
 
+    public TorConfigBuilder dormantCanceledByStartup() {
+        buffer.append("DormantCanceledByStartup 1\n");
+        return this;
+    }
+
+    @SettingsConfig
+    public TorConfigBuilder dormantCanceledByStartupFromSettings() {
+        if (settings.hasDormantCanceledByStartup()) {
+            dormantCanceledByStartup();
+        }
+        return this;
+    }
+
     public TorConfigBuilder entryNodes(String entryNodes) {
         if (!isNullOrEmpty(entryNodes))
             buffer.append("EntryNodes ").append(entryNodes).append('\n');
