@@ -129,6 +129,11 @@ public class DefaultSettings implements TorSettings {
     }
 
     @Override
+    public boolean hasDormantCanceledByStartup() {
+        return false;
+    }
+
+    @Override
     public boolean hasIsolationAddressFlagForTunnel() {
         return false;
     }
