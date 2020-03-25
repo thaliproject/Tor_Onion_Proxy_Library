@@ -6,6 +6,7 @@ buildscript {
     repositories {
         mavenLocal()
         mavenCentral()
+        jcenter()
         google()
     }
     dependencies {
@@ -41,7 +42,7 @@ task sourceJar(type: Jar) {
 
 dependencies {
     implementation project(':universal')
-    implementation 'org.torproject:tor-android-binary:0.3.5.8-rc-v2'
+    implementation 'org.torproject:tor-android-binary:0.4.2.5'
 }
 
 repositories {
