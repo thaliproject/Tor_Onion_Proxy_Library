@@ -5,5 +5,5 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 -keepattributes *Annotation*
--keep public class com.msopentech.thali.toronionproxy.TorConfigBuilder { *; }
+-keep public class com.msopentech.thali.toronionproxy.TorSettingsBuilder { *; }
 
