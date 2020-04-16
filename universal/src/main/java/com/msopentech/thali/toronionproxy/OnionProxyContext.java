@@ -206,8 +206,8 @@ abstract public class OnionProxyContext {
         return settings;
     }
 
-    public final TorConfigBuilder newConfigBuilder() {
-        return new TorConfigBuilder(this);
+    public final TorSettingsBuilder newSettingsBuilder() {
+        return new TorSettingsBuilder(this);
     }
     
     /**

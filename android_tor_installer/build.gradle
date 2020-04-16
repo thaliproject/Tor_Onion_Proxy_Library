@@ -6,10 +6,11 @@ buildscript {
     repositories {
         mavenLocal()
         mavenCentral()
+        jcenter()
         google()
     }
     dependencies {
-        classpath "com.android.tools.build:gradle:${androidplugin}"
+        classpath "com.android.tools.build:gradle:3.6.0"
     }
 }
 
@@ -34,6 +35,33 @@ android {
     }
 }
 
+publishing {
+    publications {
+        android(MavenPublication) {
+            groupId 'com.msopentech.thali.toronionproxy.android'
+            artifactId 'android_tor_installer'
+            version '0.0.3'
+            afterEvaluate {
+                artifact(sourceJar)
+            }
+            artifact("$buildDir/outputs/aar/android_tor_installer-release.aar")
+            pom.withXml {
+                def dependenciesNode = asNode().appendNode('dependencies')
+                //Iterate over the compile dependencies (we don't want the test ones), adding a <dependency> node for each
+                configurations.compile.allDependencies.each {
+                    if(it.group != null && (it.name != null || "unspecified".equals(it.name)) && it.version != null)
+                    {
+                        def dependencyNode = dependenciesNode.appendNode('dependency')
+                        dependencyNode.appendNode('groupId', it.group)
+                        dependencyNode.appendNode('artifactId', it.name)
+                        dependencyNode.appendNode('version', it.version)
+                    }
+                }
+            }
+        }
+    }
+}
+
 task sourceJar(type: Jar) {
     from android.sourceSets.main.java.srcDirs
     classifier "source"
@@ -41,7 +69,7 @@ task sourceJar(type: Jar) {
 
 dependencies {
     implementation project(':universal')
-    implementation 'org.torproject:tor-android-binary:0.3.5.8-rc-v2'
+    implementation 'org.torproject:tor-android-binary:0.4.2.5'
 }
 
 repositories {

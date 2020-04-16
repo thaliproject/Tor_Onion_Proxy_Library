@@ -6,10 +6,11 @@ buildscript {
     repositories {
         mavenLocal()
         mavenCentral()
+        jcenter()
         google()
     }
     dependencies {
-        classpath "com.android.tools.build:gradle:${androidplugin}"
+        classpath "com.android.tools.build:gradle:3.6.0"
     }
 }
 
@@ -40,7 +41,9 @@ publishing {
             groupId 'com.msopentech.thali.toronionproxy.android'
             artifactId 'android'
             version '0.0.3'
-            artifact(sourceJar)
+            afterEvaluate {
+                artifact(sourceJar)
+            }
             artifact("$buildDir/outputs/aar/android-release.aar")
             pom.withXml {
                 def dependenciesNode = asNode().appendNode('dependencies')
@@ -67,14 +70,14 @@ task sourceJar(type: Jar) {
 dependencies {
     implementation project(':universal')
     implementation 'net.freehaven.tor.control:jtorctl:0.2'
-    implementation 'org.slf4j:slf4j-api:1.7.25'
-    implementation 'org.slf4j:slf4j-android:1.7.25'
+    implementation 'org.slf4j:slf4j-api:1.7.30'
+    implementation 'org.slf4j:slf4j-android:1.7.30'
     implementation 'com.android.support:appcompat-v7:28.0.0'
-    testImplementation 'junit:junit:4.12'
+    testImplementation 'junit:junit:4.13'
     androidTestImplementation project(':android_tor_installer')
-    androidTestImplementation 'org.torproject:tor-android-binary:0.3.5.8-rc-v2'
-    androidTestImplementation 'com.android.support.test:runner:1.0.1'
-    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
+    androidTestImplementation 'org.torproject:tor-android-binary:0.4.2.5'
+    androidTestImplementation 'com.android.support.test:runner:1.0.2'
+    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
 }
 
 repositories {
