@@ -46,7 +46,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * This is where all the fun is, this is the class that handles the heavy work. Note that you will most likely need
- * to actually call into the AndroidOnionProxyManager or JavaOnionProxyManager in order to create the right bindings
+ * to actually call into the AndroidOnionProxyManager or OnionProxyManager in order to create the right bindings
  * for your environment.
  * <p>
  * This class is thread safe but that's mostly because we hit everything over the head with 'synchronized'. Given the

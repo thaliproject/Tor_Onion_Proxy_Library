@@ -106,7 +106,6 @@ Then go to your repositories and add:
     mavenCentral()
     google()
     jcenter()
-    maven { url "https://raw.githubusercontent.com/guardianproject/gpmaven/master" }
 ```
 
 Then go to dependencies and add in:
@@ -117,21 +116,27 @@ implementation 'org.slf4j:slf4j-api:1.7.7'
 implementation 'net.freehaven.tor.control:jtorctl:0.2'
 ```
 
-As discussed above, the code in this library is pretty trivial. But using it is hard because of the complexities of Tor and Java. For those in Java land please go to java\src\test\java\com\msopentech\thali\toronionproxy\TorOnionProxySmokeTest and check out testHiddenServiceRecycleTime().
+As discussed above, the code in this library is pretty trivial. But using it is hard because of the complexities of Tor and Java. For those in Java land please go to [TorOnionProxySmokeTest](java\src\test\java\com\msopentech\thali\toronionproxy\TorOnionProxySmokeTest) and check out testHiddenServiceRecycleTime().
  
 But here is some sample code to get you started.
 
 ```Java
 String fileStorageLocation = "torfiles";
-OnionProxyManager onionProxyManager = new JavaOnionProxyManager(
-        new JavaOnionProxyContext(
-                Files.createTempDirectory(fileStorageLocation).toFile()));
+TorConfig torConfig = TorConfig.createDefault(
+        Files.createTempDirectory(fileStorageLocation).toFile());
+torConfig.resolveTorrcFile();
+TorInstaller torInstaller = new JavaTorInstaller(torConfig);
+OnionProxyContext context= new JavaOnionProxyContext(torConfig, torInstaller, null);
+final OnionProxyManager onionProxyManager = new OnionProxyManager(context);
+final TorConfigBuilder builder = onionProxyManager.getContext().newConfigBuilder().updateTorConfig();
+onionProxyManager.getContext().getInstaller().updateTorConfigCustom(builder.asString());
+onionProxyManager.setup();
 
 int totalSecondsPerTorStartup = 4 * 60;
 int totalTriesPerTorStartup = 5;
 
 // Start the Tor Onion Proxy
-if (onionProxyManager.startWithRepeat(totalSecondsPerTorStartup, totalTriesPerTorStartup, true) == false) {
+if (!onionProxyManager.startWithRepeat(totalSecondsPerTorStartup, totalTriesPerTorStartup, true)) {
     return;
 }
 
@@ -155,7 +160,7 @@ Socket clientSocket =
 
 // Now the socket is open but note that it can take some time before the Tor network has everything
 // connected and connection requests can fail for spurious reasons (especially when connecting to
-// hidden services) so have lots of retry logic.        
+// hidden services) so have lots of retry logic.
 ```
 
 # Acknowledgements
