@@ -8,7 +8,7 @@ __Why__: It's sort of a pain to deploy and manage the Tor OP, we want to make it
 
 __How__: We are really just a thin Java wrapper around the Tor OP binaries and jtorctl. 
 
-__Who__: This work is part of the [Thali Project](http://www.thaliproject.org/mediawiki/index.php?title=Main_Page) and is being actively developed by Yaron Y. Goland assigned to the Microsoft Open Technologies Hub. We absolutely need your help! Please see the FAQ below if you would like to help!
+__Who__: This work is part of the [Thali Project](http://thaliproject.org/) and is being actively developed by Yaron Y. Goland assigned to the Microsoft Open Technologies Hub. We absolutely need your help! Please see the FAQ below if you would like to help!
 
 # How do I use this library?
 For now you get to build this yourself. Eventually, when it has enough testing, I might consider publishing it to some maven repository.
@@ -26,7 +26,8 @@ If you are going to use this library with Android then go to 'android' directory
 Now everything should be built and installed into your local maven. The project file will be packaged as an aar and can then be imported into your Android project.
 
 In your Android project add the following to dependencies in build.gradle:
-<pre>
+
+```groovy
 apply plugin: 'maven'
 
 dependencies {
@@ -43,7 +44,7 @@ repositories {
     jcenter()
     maven { url "https://raw.githubusercontent.com/guardianproject/gpmaven/master" }
 }
-</pre>
+```
 
 While this code doesn't do much, using it is kind of a pain because of all the ceremony in Java land. So if you are going to host a Tor hidden service on your device or if you want to open connections to the Internet via Tor then there are a variety of things you need to know. My recommendation is that you open android/src/androidTest/java/com/msopentech/thali/toronionproxy/TorOnionProxySmokeTest.java and look up the method testHiddenServiceRecycleTime and start reading.
 
@@ -96,11 +97,13 @@ I would also recommend running 'gradlew test'. This will make sure you are prope
 Now everything should be build and installed into your local maven.
 
 Now go to your build.gradle file (or equivalent) and make sure you add:
+
 ```groovy
 apply plugin: 'maven'
 ```
 
 Then go to your repositories and add:
+
 ```groovy
     mavenLocal()
     mavenCentral()
@@ -109,6 +112,7 @@ Then go to your repositories and add:
 ```
 
 Then go to dependencies and add in:
+
 ```groovy
 implementation 'com.msopentech.thali:java:0.0.3'
 implementation 'com.msopentech.thali:universal:0.0.3'
@@ -190,7 +194,8 @@ Yes, they won't interfere with each other. We use dynamic ports for both the con
 ABSOLUTELY! You will need to sign a [Contributor License Agreement](https://cla.msopentech.com/) before submitting your pull request. To complete the Contributor License Agreement (CLA), you will need to submit a request via the form and then electronically sign the Contributor License Agreement when you receive the email containing the link to the document. This needs to only be done once for any Microsoft Open Technologies OSS project. 
 
 Please make sure to configure git with a username and email address to use for your commits. Your username should be your GitHub username, so that people will be able to relate your commits to you. From a command prompt, run the following commands:
-```
+
+```terminal
 git config user.name YourGitHubUserName
 git config user.email YourAlias@YourDomain
 ```
@@ -202,18 +207,18 @@ What we most need help with right now is test coverage. But we also have a bunch
 This comes from the [tor-android-library](https://github.com/n8fr8/tor-android) 
 
 ### Windows
-I download the Expert Bundle for Windows from https://www.torproject.org/download/download.html.en and took tor.exe, libeay32.dll, libevent-2-0-5.dll, libgcc_s_sjlj-1.dll and ssleay32.dll from the Tor directory. I then need to zip them all together into a file called tor.zip and stick them into java/src/main/resources/native/windows/x86.
+I download the Expert Bundle for Windows from <https://www.torproject.org/download/download.html.en> and took `tor.exe`, `libeay32.dll`, `libevent-2-0-5.dll`, `libgcc_s_sjlj-1.dll` and `ssleay32.dll` from the Tor directory. I then need to zip them all together into a file called `tor.zip` and stick them into `java/src/main/resources/native/windows/x86`.
 
 ### Linux
-I download the 32 bit Tor Browser Bundle for Linux from https://www.torproject.org/download/download.html.en and then unzipped and untared it and navigated to tor-browser_en-US\Browser\TorBrowser\Tor\ and copied out the tor and libevent-2.0.so.5 files. Note that for stupid reasons I really should fix I currently need to zip these files together into a file called tor.zip before sticking them into java/src/main/resources/native/linux/x86.
+I download the 32 bit Tor Browser Bundle for Linux from <https://www.torproject.org/download/download.html.en> and then unzipped and untared it and navigated to `tor-browser_en-US\Browser\TorBrowser\Tor\` and copied out the tor and libevent-2.0.so.5 files. Note that for stupid reasons I really should fix I currently need to zip these files together into a file called tor.zip before sticking them into `java/src/main/resources/native/linux/x86`.
 
 I then do the same thing but this time with the 64 bit download and put the results into the x64 linux sub-directory.
 
 ### OS/X
-I download the OS/X Tor Browser bundle from https://www.torproject.org/download/download.html.en and using 7Zip opened my way into the dmg file inside of 0.unknown partition\TorBrowser.app\TorBrowser\Tor and copied out tor.real and libevent-2.0.5.dylib. And, as with Linux, I then need to zip those two files together into a file called tor.zip and put that into java/src/main/resources/native/osx/x64.
+I download the OS/X Tor Browser bundle from <https://www.torproject.org/download/download.html.en> and using 7Zip opened my way into the dmg file inside of `0.unknown partition\TorBrowser.app\TorBrowser\Tor` and copied out `tor.real` and `libevent-2.0.5.dylib`. And, as with Linux, I then need to zip those two files together into a file called `tor.zip` and put that into `java/src/main/resources/native/osx/x64`.
 
 ## Where did the geoip and geoip6 files come from?
-This comes from the [tor-android-library](https://github.com/n8fr8/tor-android) 
+This comes from the [tor-android-library](https://github.com/n8fr8/tor-android).
 
 ## Code of Conduct
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
