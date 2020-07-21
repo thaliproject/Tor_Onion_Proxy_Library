@@ -445,7 +445,7 @@ public final class TorConfig {
         private static String getTorExecutableFileName() {
             switch (OsData.getOsType()) {
                 case ANDROID:
-                    return "tor.so";
+                    return "libtor.so";
                 case LINUX_32:
                 case LINUX_64:
                 case MAC:
