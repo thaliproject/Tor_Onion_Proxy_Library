@@ -34,7 +34,7 @@ public class AndroidTorConfig {
      */
     public static TorConfig createConfig(File alternativeInstallDir, File configDir, Context context) {
         File nativeDir = new File(context.getApplicationInfo().nativeLibraryDir);
-        File torExecutable = new File(nativeDir,  "tor.so");
+        File torExecutable = new File(nativeDir,  "libtor.so");
 
         if(torExecutable.exists()) {
             Log.d(TAG, "Tor executable exists in native library directory: " + nativeDir.getAbsolutePath());
