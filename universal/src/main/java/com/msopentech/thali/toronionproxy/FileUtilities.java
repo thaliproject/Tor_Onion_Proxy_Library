@@ -200,6 +200,9 @@ public final class FileUtilities {
             ZipEntry zipEntry;
             while ((zipEntry = zipInputStream.getNextEntry()) != null) {
                 File file = new File(destinationDirectory, zipEntry.getName());
+                if (!file.toPath().normalize().startsWith(destinationDirectory.toPath().normalize())) {
+                    throw new IOException("Bad zip entry");
+                }
                 if (zipEntry.isDirectory()) {
                     if (file.exists() == false && !file.mkdirs()) {
                         throw new RuntimeException("Could not create directory " + file);
