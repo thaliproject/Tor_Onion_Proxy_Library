@@ -1,5 +1,4 @@
 apply plugin: 'com.android.library'
-apply plugin: 'maven'
 apply plugin: 'maven-publish'
 
 buildscript {
@@ -23,7 +22,6 @@ android {
         versionName "0.0.3"
         consumerProguardFiles 'proguard-rules.pro'
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
-
     }
 
     buildTypes {
@@ -34,18 +32,27 @@ android {
     }
 }
 
+task sourcesJar(type: Jar) {
+    from android.sourceSets.main.java.srcDirs
+    classifier = 'sources'
+}
+
+artifacts {
+    archives sourcesJar
+}
+
 publishing {
     publications {
         android(MavenPublication) {
             groupId 'com.msopentech.thali.toronionproxy.android'
             artifactId 'android'
             version '0.0.3'
-            artifact(sourceJar)
+            artifact(sourcesJar)
             artifact("$buildDir/outputs/aar/android-release.aar")
             pom.withXml {
                 def dependenciesNode = asNode().appendNode('dependencies')
-                //Iterate over the compile dependencies (we don't want the test ones), adding a <dependency> node for each
-                configurations.compile.allDependencies.each {
+                //Iterate over the implementation dependencies (we don't want the test ones), adding a <dependency> node for each
+                configurations.implementation.allDependencies.each {
                     if(it.group != null && (it.name != null || "unspecified".equals(it.name)) && it.version != null)
                     {
                         def dependencyNode = dependenciesNode.appendNode('dependency')
@@ -57,11 +64,6 @@ publishing {
             }
         }
     }
-}
-
-task sourceJar(type: Jar) {
-    from android.sourceSets.main.java.srcDirs
-    classifier "source"
 }
 
 dependencies {
@@ -97,13 +99,4 @@ task copyPluggableTransports(type: Copy) {
 
 gradle.projectsEvaluated {
     preBuild.dependsOn(copyPluggableTransports)
-}
-
-task sourcesJar(type: Jar) {
-    from android.sourceSets.main.java.srcDirs
-    classifier = 'sources'
-}
-
-artifacts {
-    archives sourcesJar
 }
