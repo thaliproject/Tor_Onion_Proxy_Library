@@ -1,5 +1,5 @@
-allprojects  {
-  apply plugin: 'maven'
+allprojects {
+  apply plugin: 'maven-publish'
   group = 'com.msopentech.thali'
   version = '0.0.3'
 }
@@ -12,7 +12,5 @@ subprojects {
   }
 }
 
-evaluationDependsOn ":universal"
-evaluationDependsOn ":java"
-
-
+evaluationDependsOn(":universal")
+evaluationDependsOn(":java")
